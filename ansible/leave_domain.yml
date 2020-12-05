@@ -1,0 +1,50 @@
+---
+## This playbook leaves the current AAD domain
+
+- name: Leave AAD domain
+  hosts: all
+  gather_facts: no
+  become: yes
+  become_method: sudo
+
+  tasks:
+    - name: Leave AD 
+      command: realm leave
+    
+    - name: remove keytab file
+      file:
+        path: /etc/krb5.keytab
+        state: absent
+       
+
+    - name: remove keytab file
+      file:
+        path:  /etc/samba/smb.conf
+        state: absent
+
+    - name: remove sssd.conf
+      file:
+        path:  /etc/sssd/sssd.conf
+        state: absent
+      notify:
+        - stop sssd
+
+    - name: Update PasswordAuthentiation
+      lineinfile:
+        dest: /etc/ssh/sshd_config
+        line: "PasswordAuthentication  no"
+        regexp: '^PasswordAuthentication(.*)$'
+        state: present
+      notify:
+        - restart sshd
+
+  handlers:
+    - name: stop sssd
+      service:
+        name: sssd
+        state: stopped
+
+    - name: restart sshd
+      service:
+        name: sshd
+        state: restarted

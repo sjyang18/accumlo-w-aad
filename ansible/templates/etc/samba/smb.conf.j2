@@ -1,0 +1,34 @@
+[global]
+        security = ads
+        realm = {{ domain_name |upper }}
+# If the system doesn't find the domain controller automatically, you may need the following line
+        password server = *
+# note that workgroup is the 'short' domain name
+        workgroup = {{ domain_workgroup }}
+#       winbind separator = +
+        winbind enum users = yes
+        winbind enum groups = yes
+        template homedir = /home/%D/%U
+        template shell = /bin/bash
+        client use spnego = yes
+        client ntlmv2 auth = yes
+        encrypt passwords = yes
+        restrict anonymous = 2
+        log level = 2
+        log file = /var/log/samba/sambadebug.log.%m
+        debug timestamp = yes
+        max log size = 50
+        winbind use default domain = yes
+        nt pipe support = no
+        kerberos method = secrets and keytab
+# Placeholder for domains
+idmap config {{ domain_workgroup }} : backend = rid
+idmap config {{ domain_workgroup }} : schema_mode = rid
+idmap config {{ domain_workgroup }} : range = 100000-1100000
+idmap config {{ domain_workgroup }} : base_rid = 0
+idmap config * : backend = tdb
+idmap config * : schema_mode = rid
+idmap config * : range = 10000-99999
+idmap config * : base_rid = 0
+
+

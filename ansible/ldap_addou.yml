@@ -1,0 +1,33 @@
+## This playbook add OU to AAD domain
+
+- name: add new OU to AAD domain for hosting computers and users for this cluster
+  hosts: accumulomaster[0]
+  gather_facts: yes
+  become: yes
+  become_method: sudo
+  vars:
+    custom_ou_name: MyCustomOU2
+  vars_prompt:
+    - name: "bind_password"
+      prompt: "Password for LADP binddn"
+      private: yes
+
+  tasks:
+    - name: Check add_ou.ldif.bak created by the previous successful creation exists
+      stat:
+        path: '{{ ansible_user_dir }}/add_ou.ldif.bak'
+      register: check_previous_execution
+
+    - name: Generate add_ou ldif file
+      template: 
+        src=ldapops/add_ou.ldif.j2
+        dest="{{ ansible_user_dir }}/add_ou.ldif"
+      when: not check_previous_execution.stat.exists
+
+    - name: Run ldapadd only when ldif file is created in this playbook
+      command: ldapadd -x -w {{ bind_password }}  -D '{{ ldap_binddn }}' -f {{ ansible_user_dir }}/add_ou.ldif
+      when: not check_previous_execution.stat.exists
+
+    - name: Backup add_ou.ldif file
+      command : "mv {{ ansible_user_dir }}/add_ou.ldif {{ ansible_user_dir }}/add_ou.ldif.bak"
+      when: not check_previous_execution.stat.exists

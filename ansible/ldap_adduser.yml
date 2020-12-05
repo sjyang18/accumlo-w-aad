@@ -1,0 +1,47 @@
+## This playbook add login_user to AAD domain
+
+- name: add accumulo user and spn to AAD domain
+  hosts: all
+  gather_facts: yes
+  become: yes
+  become_method: sudo
+  vars_prompt:
+    - name: "bind_password"
+      prompt: "Password for LADP binddn"
+      private: yes
+
+  tasks:
+    - name: Set login_user
+      set_fact:
+        login_user: "{{ lookup('env','USER') }}"
+
+    - name: Set login_user_cn
+      set_fact:
+        login_user_cn: "{{ login_user }}/{{ ansible_fqdn }}"
+  
+    - name: Set sAMAccountName
+      set_fact:
+        sAMAccountName: "{{ login_user }}_{{ short_hostname }}"
+
+    - name: Debug
+      become: no
+      debug: msg="{{ login_user_cn }}, {{ sAMAccountName }}, {{ ansible_user_dir }}"
+
+    - name: Check add_user.ldif.bak created by the previous successful creation exists
+      stat:
+        path: '{{ ansible_user_dir }}/add_user.ldif.bak'
+      register: check_previous_execution
+
+    - name: Generate login_user ldif file
+      template: 
+        src=ldapops/add_user.ldif.j2
+        dest="{{ ansible_user_dir }}/add_user.ldif"
+      when: not check_previous_execution.stat.exists
+
+    - name: Run ldapadd only when ldif file is created in this playbook
+      command: ldapadd -x -w {{ bind_password }}  -D '{{ ldap_binddn }}' -f {{ ansible_user_dir }}/add_user.ldif
+      when: not check_previous_execution.stat.exists
+
+    - name: Backup add_user.ldif file
+      command : "mv {{ ansible_user_dir }}/add_user.ldif {{ ansible_user_dir }}/add_user.ldif.bak"
+      when: not check_previous_execution.stat.exists

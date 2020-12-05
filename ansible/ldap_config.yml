@@ -1,0 +1,40 @@
+---
+## This playbook run ldap ops
+
+- name: LDAP operation
+  hosts: all
+  gather_facts: yes
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: Update /etc/hosts file with AAD ldap endpoint
+      blockinfile:
+        path: /etc/hosts
+        block: |
+          {{ ldap_host_ip_address }} {{ ldap_hostname }}
+    - name: Install LDAP client
+      yum:
+        name: openldap,openldap-clients 
+        state: present
+
+    - name: Update LDAP BASE
+      lineinfile:
+        dest: /etc/openldap/ldap.conf
+        line: "BASE  {{ domain_dn }}"
+        regexp: '^#BASE(.*)$'
+        state: present
+
+    - name: Update LDAP URI
+      lineinfile:
+        dest: /etc/openldap/ldap.conf
+        line: "URI  {{ ldap_uri }}"
+        regexp: '^#URI(.*)$'
+        state: present
+
+    - name: set TLS_REQCERT to allow
+      lineinfile:
+        dest: /etc/openldap/ldap.conf
+        line: "TLS_REQCERT allow"
+        state: present
+      
+

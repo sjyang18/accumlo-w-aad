@@ -1,0 +1,12 @@
+dn: CN={{ login_user_cn }},OU={{ custom_ou_name }},{{ domain_dn }}
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: user
+cn: {{ login_user_cn }}
+sAMAccountName: {{ sAMAccountName }}
+userPrincipalName: {{ login_user_cn }}@{{ domain_name }}
+servicePrincipalName: {{ login_user_cn }}
+accountExpires: 0
+userAccountControl: 66048
+unicodePwd:{{ encoded_user_init_password }}

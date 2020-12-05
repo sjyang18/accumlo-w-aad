@@ -1,0 +1,81 @@
+---
+## This playbook installs and configures AAD integration
+
+- name: Install and configure AAD integration
+  hosts: all
+  gather_facts: yes
+  become: yes
+  become_method: sudo
+  vars_prompt:
+    - name: "bind_admin_username"
+      prompt: "AAD Admin username"
+      private: no
+    - name: "bind_password"
+      prompt: "Password for AAD Admin user"
+      private: yes
+
+  tasks:
+    - name: Install the required packages
+      yum:
+        name: realmd,sssd,oddjob,oddjob-mkhomedir,adcli,samba-common,samba-common-tools,krb5-workstation,krb5-libs,python3-pip
+        state: present
+      notify:
+        - restart realmd
+
+    - name: Install pexpect using pip
+      pip:
+        name: pexpect
+
+    - name: Generate /etc/hosts file with fqdn name
+      template:
+        src=etc/hosts.j2
+        dest=/etc/hosts
+      
+    - name: Join system to AD and add the computer object in the Linux OU
+      expect:
+        command: /bin/bash -c "/usr/sbin/realm join --user='{{ bind_admin_username }}' --computer-ou=OU='{{ custom_ou_name }},{{ domain_dn }}' {{ domain_name | upper }}"
+        responses:
+          Password for *: "{{ bind_password }}"
+  
+    - name: Generate smb.conf
+      template:
+        src=etc/samba/smb.conf.j2
+        dest=/etc/samba/smb.conf
+
+    - name: Generate krb5.conf
+      template:
+        src=etc/krb5.conf.j2
+        dest=/etc/krb5.conf
+
+    - name: Add default_domain_suffix to sssd.conf
+      lineinfile:
+        dest: /etc/sssd/sssd.conf
+        line: "default_domain_suffix = {{ domain_name }}"
+        insertafter: '^\[sssd\]'
+      notify:
+        - restart sssd
+
+    - name: Update PasswordAuthentiation
+      lineinfile:
+        dest: /etc/ssh/sshd_config
+        line: "PasswordAuthentication  yes"
+        regexp: '^PasswordAuthentication(.*)$'
+        state: present
+      notify:
+        - restart sshd
+
+  handlers:
+    - name: restart realmd
+      service:
+        name: realmd
+        state: restarted
+
+    - name: restart sssd
+      service:
+        name: sssd
+        state: restarted
+    
+    - name: restart sshd
+      service:
+        name: sshd
+        state: restarted

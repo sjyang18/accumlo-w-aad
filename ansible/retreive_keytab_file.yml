@@ -1,0 +1,41 @@
+## This playbook retreive the keytab file for login_user
+
+- name: Test tasks
+  hosts: all
+  gather_facts: yes
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: Set login_home
+      set_fact:
+        login_home: "{{ lookup('env','HOME') }}"
+    - name: Set login_user
+      set_fact:
+        login_user: "{{ lookup('env','USER') }}"
+
+    - name: Set login_user_cn
+      set_fact:
+        login_user_cn: "{{ login_user }}/{{ ansible_fqdn }}"
+
+    - name: Retreive login_user's keytab
+      expect:
+        command: ktutil
+        responses:
+          ktutil:
+            - "addent -password  -p {{ login_user_cn }}@{{ realm_name }} -k 1 -e RC4-HMAC"
+            - "wkt {{ login_home }}/{{ login_user }}.keytab"
+            - "quit"
+          Password(.*): "{{ decoded_user_init_password }}"
+
+    - name: change owner of keytab file
+      file:
+        path: '{{ login_home }}/{{ login_user }}.keytab'
+        owner: '{{ login_user }}'
+        group: root
+        mode: u+rw,g+rw,o-rwx
+
+
+
+
+
+
