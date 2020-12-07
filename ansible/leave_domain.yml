@@ -1,8 +1,8 @@
 ---
 ## This playbook leaves the current AAD domain
 
-- name: Leave AAD domain
-  hosts: all
+- name: Leaves AAD domain
+  hosts: accumulo
   gather_facts: no
   become: yes
   become_method: sudo

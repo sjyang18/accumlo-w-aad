@@ -1,4 +1,4 @@
-## This playbook add OU to AAD domain
+## This playbook adds OU to AAD domain
 
 - name: add new OU to AAD domain for hosting computers and users for this cluster
   hosts: accumulomaster[0]

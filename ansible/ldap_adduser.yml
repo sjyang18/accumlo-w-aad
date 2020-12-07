@@ -1,7 +1,7 @@
-## This playbook add login_user to AAD domain
+## This playbook adds login_user to AAD domain
 
 - name: add accumulo user and spn to AAD domain
-  hosts: all
+  hosts: accumulo
   gather_facts: yes
   become: yes
   become_method: sudo
