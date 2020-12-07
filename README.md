@@ -46,6 +46,7 @@ Run the following sequence of ansible playbooks.
 ansible-playbook -i hosts ansible/ldap_config.yml
 ansible-playbook -i hosts ansible/ldap_addou.yml
 ansible-playbook -i hosts ansible/join_domain.yml
+ansible-playbook -i hosts ansible/ldap_adduser.yml
 ansible-playbook -i hosts ansible/retreive_keytab_file.yml
 ```
 
