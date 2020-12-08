@@ -7,9 +7,6 @@
   become: yes
   become_method: sudo
   vars_prompt:
-    - name: "bind_admin_username"
-      prompt: "AAD Admin username"
-      private: no
     - name: "bind_password"
       prompt: "Password for AAD Admin user"
       private: yes
@@ -17,10 +14,22 @@
   tasks:
     - name: Install the required packages
       yum:
-        name: realmd,sssd,oddjob,oddjob-mkhomedir,adcli,samba-common,samba-common-tools,krb5-workstation,krb5-libs,python3-pip
+        name: realmd,sssd,oddjob,oddjob-mkhomedir,adcli,samba-common,samba-common-tools,krb5-workstation,krb5-libs
         state: present
       notify:
         - restart realmd
+
+    - name: Install the python2-pip
+      yum:
+        name: python2-pip
+        state: present
+      when: ansible_python['version']['major'] == 2
+
+    - name: Install the python3-pip
+      yum:
+        name: python3-pip
+        state: present
+      when: ansible_python['version']['major'] == 3
 
     - name: Install pexpect using pip
       pip:
@@ -30,13 +39,20 @@
       template:
         src=etc/hosts.j2
         dest=/etc/hosts
-      
+
+    - name: Add ldap host as a nameserver
+      lineinfile:
+        dest: /etc/resolv.conf
+        line: "nameserver {{ ldap_host_ip_address }}"
+        state: present
+
     - name: Join system to AD and add the computer object in the Linux OU
       expect:
-        command: /bin/bash -c "/usr/sbin/realm join --user='{{ bind_admin_username }}' --computer-ou=OU='{{ custom_ou_name }},{{ domain_dn }}' {{ domain_name | upper }}"
+        command: /bin/bash -c "/usr/sbin/realm join --user='{{ domain_admin_full_username }}' --computer-ou=OU='{{ custom_ou_name }},{{ domain_dn }}' {{ domain_name | upper }}"
         responses:
           Password for *: "{{ bind_password }}"
-  
+        timeout: 300
+
     - name: Generate smb.conf
       template:
         src=etc/samba/smb.conf.j2
@@ -54,7 +70,7 @@
         insertafter: '^\[sssd\]'
       notify:
         - restart sssd
-
+  
     - name: Update PasswordAuthentiation
       lineinfile:
         dest: /etc/ssh/sshd_config
