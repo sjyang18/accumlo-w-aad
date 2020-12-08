@@ -22,16 +22,18 @@ accumulomaster
 workers
 
 [all:vars]
-ansible_python_interpreter=/usr/bin/python3
+#ansible_python_interpreter=/usr/bin/python3
 domain_name=xxxxx.onmicrosoft.com
 realm_name={{ domain_name |upper }}
 domain_dn=DC=xxxxx,DC=onmicrosoft,DC=com
 domain_workgroup=XXXXX
 custom_ou_name=MyCustomOU
+domain_admin_username=accumulo
+domain_admin_full_username='{{ domain_admin_username }}@{{ realm_name }}'
 ldap_host_ip_address=10.0.0.5
 ldap_hostname=ldaps.xxxxx.onmicrosoft.com
 ldap_uri=ldaps://{{ ldap_hostname }}
-ldap_binddn='CN=accumulo,OU=AADDC Users,{{ domain_dn }}'
+ldap_binddn='CN={{ domain_admin_username }},OU=AADDC Users,{{ domain_dn }}'
 encoded_user_init_password=<<Replace with your encoded user passowrd (i.e. unicodePwd) >>
 decoded_user_init_password=<<Replace with your user password chosen >>
 ```
