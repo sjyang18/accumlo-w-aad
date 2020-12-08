@@ -50,7 +50,10 @@ ansible-playbook -i hosts ansible/ldap_adduser.yml
 ansible-playbook -i hosts ansible/retreive_keytab_file.yml
 ```
 
+# Notes
 
+## Question: Got error when joining domain with 'Couldn't find a configured realm' error.
 
+Answer: Your VNET, which is pered to AAD DS domain service VNET, might not configure with custom DNS servers. Refer to this document (https://docs.microsoft.com/en-us/azure/active-directory-domain-services/tutorial-configure-networking#configure-dns-servers-in-the-peered-virtual-network) to add DNS servers to your VNET and reboot your VMSS. 
 
 
