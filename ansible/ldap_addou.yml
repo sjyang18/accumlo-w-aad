@@ -5,8 +5,6 @@
   gather_facts: yes
   become: yes
   become_method: sudo
-  vars:
-    custom_ou_name: MyCustomOU2
   vars_prompt:
     - name: "bind_password"
       prompt: "Password for LADP binddn"
