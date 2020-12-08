@@ -1,3 +1,4 @@
+---
 ## This playbook retreive the keytab file for login_user
 
 - name: retreives the keytab for accumulo service
