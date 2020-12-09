@@ -1,0 +1,8 @@
+Server {
+com.sun.security.auth.module.Krb5LoginModule required
+useKeyTab=true
+storeKey=true
+useTicketCache=false
+keyTab="{{ zookeeper_service_principal_keytabfile }}"
+principal="{{ zookeeper_service_principal }}";
+};

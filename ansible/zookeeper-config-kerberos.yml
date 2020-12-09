@@ -1,0 +1,45 @@
+---
+
+- name: changes the existing zookeeper configs with kerberos
+  hosts: zookeepers
+  gather_facts: yes
+  become: no
+  tasks:
+    - name: Set zookeeper_service_principal_login
+      set_fact:
+        login_home: "{{ lookup('env','HOME') }}"
+        zookeeper_service_principal_login: "{{ lookup('env','USER') }}"
+
+    - name: Set keberos keytab file and service principal name
+      set_fact: 
+        zookeeper_service_principal_keytabfile: "{{ login_home }}/{{ zookeeper_service_principal_login }}.keytab"
+        zookeeper_service_principal: "{{ zookeeper_service_principal_login }}/{{ ansible_fqdn }}@{{ realm_name }}"
+
+    - name: Generate zookeeper-server.jaas
+      template:
+        src=conf/zookeeper-server.jaas.j2
+        dest='{{ zookeeper_home }}/conf/zookeeper-server.jaas'
+
+    - name: Generate zookeeper-client.jaas
+      template:
+        src=conf/zookeeper-client.jaas.j2
+        dest='{{ zookeeper_home }}/conf/zookeeper-client.jaas'
+
+    - name: update conf/zookeeper-env.sh with Kerberos setting
+      blockinfile:
+        path: '{{ zookeeper_home }}/conf/zookeeper-env.sh'
+        block: |
+          export SERVER_JVMFLAGS="-Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-server.jaas"
+          export CLIENT_JVMFLAGS="-Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-client.jaas"
+   
+    - name: update conf/zoo.cfg with Kerberos setting
+      blockinfile:
+        path: '{{ zookeeper_home }}/conf/zoo.cfg'
+        block: |
+          authProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider
+          jaasLoginRenew=3600000
+          kerberos.removeHostFromPrincipal=true
+          kerberos.removeRealmFromPrincipal=true
+   
+
+
