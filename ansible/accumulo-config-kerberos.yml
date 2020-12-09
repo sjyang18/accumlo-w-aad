@@ -77,4 +77,14 @@
       lineinfile:
         path: '{{ accumulo_home }}/conf/accumulo-client.properties'
         regexp: '^auth.token=(.*)$'
-        line: 'auth.token={{ accumulo_service_principal_keytabfile }}' 
+        line: 'auth.token={{ accumulo_service_principal_keytabfile }}'
+
+    - name: update accumulo-client.properties with Kerberos setting (auth.token)
+      blockinfile:
+        path: '{{ accumulo_home }}/conf/accumulo-client.properties'
+        insertafter: '^auth.token=(.*)$'
+        block: |
+          sasl.enabled=true
+          sasl.qop=auth
+          sasl.kerberos.server.primary={{ accumulo_service_principal_login }}
+

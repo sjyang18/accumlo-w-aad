@@ -1,7 +1,7 @@
 ## This playbook adds login_user to AAD domain
 
 - name: add accumulo user and spn to AAD domain
-  hosts: accumulo
+  hosts: all
   gather_facts: yes
   become: yes
   become_method: sudo
@@ -21,7 +21,7 @@
   
     - name: Set sAMAccountName
       set_fact:
-        sAMAccountName: "{{ login_user }}_{{ short_hostname }}"
+        sAMAccountName: "{{ lookup('password', '/dev/null chars=ascii_lowercase,digits length=8') }}"
 
     - name: Debug
       become: no

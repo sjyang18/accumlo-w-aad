@@ -2,7 +2,7 @@
 ## This playbook installs and configures AAD integration
 
 - name: Install and configure AAD integration
-  hosts: accumulo
+  hosts: all
   gather_facts: yes
   become: yes
   become_method: sudo

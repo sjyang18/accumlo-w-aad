@@ -1,8 +1,8 @@
 ---
 ## This playbook retreive the keytab file for login_user
 
-- name: retreives the keytab for accumulo service
-  hosts: accumulo
+- name: retreives the keytab for services
+  hosts: all
   gather_facts: yes
   become: yes
   become_method: sudo
