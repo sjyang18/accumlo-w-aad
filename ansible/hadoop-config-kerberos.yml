@@ -1,0 +1,204 @@
+---
+- name: changes to zkfc for kerberos
+  hosts: zkfc
+  gather_facts: yes
+  become: no
+  tasks:
+    - name: patch HDFS_ZKFC_OPTS in zkfc 
+      lineinfile:
+        path: '{{ hadoop_home }}/etc/hadoop/hadoop-env.sh'
+        line: 'export HDFS_ZKFC_OPTS="${HDFS_ZKFC_OPTS} -Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-client.jaas"'
+
+- name: changes the existing hadoop configs with kerberos
+  hosts: hadoop
+  gather_facts: yes
+  become: no
+  tasks:
+    - name: Set hadoop_service_principal_login
+      set_fact:
+        login_home: "{{ lookup('env','HOME') }}"
+        hadoop_service_principal_login: "{{ lookup('env','USER') }}"
+
+    - name: Set keberos keytab file and service principal name
+      set_fact: 
+        hadoop_service_principal_keytabfile: "{{ login_home }}/{{ hadoop_service_principal_login }}.keytab"
+        hadoop_service_principal: "{{ hadoop_service_principal_login }}/_HOST@{{ realm_name }}"
+
+    - name: update etc/hadoop/core-site.xml with Kerberos setting
+      blockinfile:
+        path: '{{ hadoop_home }}/etc/hadoop/core-site.xml'
+        insertbefore: '^\<\/configuration\>$'
+        marker: "<!-- {mark} ANSIBLE MANAGED BLOCK -->"
+        block: |
+          <property>
+              <name>hadoop.security.authentication</name>
+              <value>kerberos</value>
+          </property>
+
+          <property>
+              <name>hadoop.security.authorization</name>
+              <value>true</value>
+          </property>
+
+          <property>
+                <name>hadoop.rpc.protection</name>
+                <value>authentication,privacy</value>
+          </property>
+
+          <property>
+                <name>hadoop.proxyuser.hdfs.groups</name>
+                <value>*</value>
+          </property>
+
+          <property>
+              <name>hadoop.proxyuser.hdfs.hosts</name>
+              <value>*</value>
+          </property>
+
+          <property>
+            <name>hadoop.proxyuser.HTTP.groups</name>
+            <value>users</value>
+          </property>
+
+          <property>
+            <name>hadoop.proxyuser.yarn.groups</name>
+            <value>*</value>
+          </property>
+
+          <property>
+                <name>hadoop.proxyuser.yarn.hosts</name>
+                <value>{{ groups['resourcemanager'][0] }},{{ groups['resourcemanager'][1] }}</value>
+          </property>
+   
+    - name: update etc/hadoop/hdfs-site.xml with Kerberos setting
+      blockinfile:
+        path: '{{ hadoop_home }}/etc/hadoop/hdfs-site.xml'
+        insertbefore: '^\<\/configuration\>$'
+        marker: "<!-- {mark} ANSIBLE MANAGED BLOCK -->"
+        block: |
+          <!-- Namenode -->
+
+          <property>
+                <name>dfs.block.access.token.enable</name>
+                <value>true</value>
+          </property>
+
+          <property>
+                <name>dfs.namenode.kerberos.principal</name>
+                <value>{{ hadoop_service_principal }}</value>
+          </property>
+
+          <property>
+                <name>dfs.namenode.keytab.file</name>
+                <value>/etc/security/keytabs/nn.service.keytab</value>
+          </property>
+
+          <property>
+                <name>dfs.namenode.kerberos.internal.spnego.principal</name>
+                <value>{{ hadoop_service_principal }}</value>
+          </property>
+
+          <property>
+                <name>dfs.web.authentication.kerberos.keytab</name>
+                <value>{{ hadoop_service_principal_keytabfile }}</value>
+          </property>
+
+          <property>
+                <name>dfs.http.policy</name>
+                <value>HTTPS_ONLY</value>
+          </property>
+
+          <property>
+              <name>dfs.webhdfs.enabled</name>
+              <value>true</value>
+          </property>
+
+          <property>
+              <name>dfs.encrypt.data.transfer</name>
+              <value>true</value>
+          </property>
+
+          <!-- JournalNode -->
+
+          <property>
+                <name>dfs.journalnode.kerberos.principal</name>
+                <value>{{ hadoop_service_principal }}</value>
+          </property>
+
+          <property>
+                <name>dfs.journalnode.keytab.file</name>
+                <value>{{ hadoop_service_principal_keytabfile }}</value>
+          </property>
+
+          <property>
+                <name>dfs.journalnode.kerberos.internal.spnego.principal</name>
+                <value>{{ hadoop_service_principal }}</value>
+          </property>
+
+          <property>
+                <name>dfs.web.authentication.kerberos.keytab</name>
+                <value>{{ hadoop_service_principal_keytabfile }}</value>
+          </property>
+
+          <property>
+                <name>dfs.journalnode.https-address</name>
+                <value>0.0.0.0:8481</value>
+          </property>
+
+          <!-- DataNode -->
+
+          <property>
+                <name>dfs.datanode.data.dir.perm</name>
+                <value>750</value>
+          </property>
+
+          <property>
+                <name>dfs.datanode.address</name>
+                <value>0.0.0.0:1039</value>
+                <description> This must be non-privileged port (i.e. > 1024) for
+                SASL to authenticate Data Transfer Protocol (DTP) </description>
+          </property>
+
+          <property>
+                <name>dfs.datanode.https.address</name>
+                <value>0.0.0.0:50075</value>
+          </property>
+
+          <property>
+                <name>dfs.datanode.kerberos.principal</name>
+                <value>{{ hadoop_service_principal }}</value>
+          </property>
+
+          <property>
+                <name>dfs.datanode.keytab.file</name>
+                <value>{{ hadoop_service_principal_keytabfile }} </value>
+          </property>
+
+          <property>
+              <name>dfs.encrypt.data.transfer</name>
+              <value>true</value>
+          </property>
+
+          <property>
+                <name>dfs.encrypt.data.transfer.cipher.suites</name>
+                <value>AES/CTR/NoPadding</value>
+          </property>
+
+          <property>
+                <name>dfs.data.transfer.protection</name>
+                <value>authentication,privacy</value>
+          </property>
+
+          <!-- WebHDFS -->
+
+          <property>
+                <name>dfs.web.authentication.kerberos.principal</name>
+                <value>{{ hadoop_service_principal }}</value>
+          </property>
+
+          <property>
+                <name>dfs.web.authentication.kerberos.keytab</name>
+                <value>{{ hadoop_service_principal_keytabfile }} </value>
+          </property>
+
+
