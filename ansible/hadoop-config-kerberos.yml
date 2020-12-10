@@ -7,7 +7,7 @@
     - name: patch HDFS_ZKFC_OPTS in zkfc 
       lineinfile:
         path: '{{ hadoop_home }}/etc/hadoop/hadoop-env.sh'
-        line: 'export HDFS_ZKFC_OPTS="${HDFS_ZKFC_OPTS} -Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-client.jaas"'
+        line: 'export HDFS_ZKFC_OPTS="${HDFS_ZKFC_OPTS} -Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-server.jaas"'
 
 - name: changes the existing hadoop configs with kerberos
   hosts: hadoop
@@ -22,7 +22,7 @@
     - name: Set keberos keytab file and service principal name
       set_fact: 
         hadoop_service_principal_keytabfile: "{{ login_home }}/{{ hadoop_service_principal_login }}.keytab"
-        hadoop_service_principal: "{{ hadoop_service_principal_login }}/{{ ansible_fqdn }}@{{ realm_name }}"
+        hadoop_service_principal: "{{ hadoop_service_principal_login }}/_HOST@{{ realm_name }}"
 
     - name: update etc/hadoop/core-site.xml with Kerberos setting
       blockinfile:
@@ -31,15 +31,21 @@
         marker: "<!-- {mark} ANSIBLE MANAGED BLOCK -->"
         block: |
           <property>
+            <name>hadoop.http.authentication.cookie.domain</name>
+            <value>{{ domain_name }}</value>
+          </property>
+          <property>
+            <name>hadoop.http.filter.initializers</name>
+            <value>org.apache.hadoop.security.AuthenticationFilterInitializer</value>
+          </property>
+          <property>
               <name>hadoop.security.authentication</name>
               <value>kerberos</value>
           </property>
-
           <property>
               <name>hadoop.security.authorization</name>
               <value>true</value>
           </property>
-
           <property>
                 <name>hadoop.rpc.protection</name>
                 <value>authentication,privacy</value>
@@ -69,6 +75,14 @@
                 <name>hadoop.proxyuser.yarn.hosts</name>
                 <value>{{ groups['resourcemanager'][0] }},{{ groups['resourcemanager'][1] }}</value>
           </property>
+
+          <property>
+            <name>hadoop.security.auth_to_local</name>
+            <value>
+                  RULE:[1:$1@$0](.*@{{ realm_name }})s/@.*//
+                  DEFAULT</value>
+          </property>
+
    
     - name: update etc/hadoop/hdfs-site.xml with Kerberos setting
       blockinfile:
