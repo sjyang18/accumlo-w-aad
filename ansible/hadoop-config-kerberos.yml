@@ -90,7 +90,7 @@
 
           <property>
                 <name>dfs.namenode.keytab.file</name>
-                <value>/etc/security/keytabs/nn.service.keytab</value>
+                <value>{{ hadoop_service_principal_keytabfile }}</value>
           </property>
 
           <property>
