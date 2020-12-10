@@ -1,7 +1,7 @@
 [libdefaults]
   default_realm = {{ domain_name |upper }}
-  dns_lookup_realm = true
-  dns_lookup_kdc = true
+  dns_lookup_realm = false
+  dns_lookup_kdc = false
   ticket_lifetime = 24h
   #renew_lifetime = 7d
   forwardable = true
@@ -15,12 +15,12 @@
   admin_server = FILE:/var/log/kadmind.log
   kdc = FILE:/var/log/krb5kdc.log
 
-#[domain_realm]
-#  {{ domain_name }}={{ domain_name |upper }}
-#  .{{ domain_name }}={{ domain_name |upper }}
+[domain_realm]
+  {{ domain_name }}={{ domain_name |upper }}
+  .{{ domain_name }}={{ domain_name |upper }}
   
-#[realms]
-#  {{ domain_name |upper }} = {
-#      admin_server = {{ ldap_hostname }}
-#      kdc = {{ ldap_hostname }}
-#  }
+[realms]
+  {{ domain_name |upper }} = {
+      admin_server = {{ ldap_hostname }}
+      kdc = {{ ldap_hostname }}
+  }
