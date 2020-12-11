@@ -1,4 +1,24 @@
 ---
+
+- name: generate http_secrete file
+  hosts: all
+  gather_facts: no
+  become: no
+  tasks:
+    - name : generate random_uuid value
+      local_action:
+        set_fact random_uuid="{{ lookup('password', '/dev/null chars=ascii_lowercase,digits length=8') | to_uuid }}"
+      run_once: true
+    - name: Debug
+      debug: var=random_uuid
+    - name: Set hadoop_service_principal_login
+      set_fact:
+        login_home: "{{ lookup('env','HOME') }}"
+    - name: create http_secret file
+      copy:
+        dest: '{{ login_home }}/http_secret'
+        content: '{{ random_uuid }}'
+
 - name: changes to zkfc for kerberos
   hosts: zkfc
   gather_facts: yes
@@ -7,7 +27,8 @@
     - name: patch HDFS_ZKFC_OPTS in zkfc 
       lineinfile:
         path: '{{ hadoop_home }}/etc/hadoop/hadoop-env.sh'
-        line: 'export HDFS_ZKFC_OPTS="${HDFS_ZKFC_OPTS} -Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-server.jaas"'
+        state: absent
+        line: 'export HDFS_ZKFC_OPTS="${HDFS_ZKFC_OPTS} -Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-client.jaas"'
 
 - name: changes the existing hadoop configs with kerberos
   hosts: hadoop
@@ -38,6 +59,30 @@
             <name>hadoop.http.filter.initializers</name>
             <value>org.apache.hadoop.security.AuthenticationFilterInitializer</value>
           </property>
+          <property>
+            <name>hadoop.http.authentication.kerberos.keytab</name>
+            <value>{{ hadoop_service_principal_keytabfile }}</value>
+          </property>
+
+          <property>
+            <name>hadoop.http.authentication.kerberos.principal</name>
+            <value>{{ hadoop_service_principal }}</value>
+          </property>
+
+          <property>
+            <name>hadoop.http.authentication.signature.secret.file</name>
+            <value>{{ login_home }}/http_secret</value>
+          </property>
+
+          <property>
+            <name>hadoop.http.authentication.simple.anonymous.allowed</name>
+            <value>false</value>
+          </property>
+          <property>
+            <name>hadoop.http.authentication.type</name>
+            <value>kerberos</value>
+          </property>
+
           <property>
               <name>hadoop.security.authentication</name>
               <value>kerberos</value>
@@ -75,14 +120,6 @@
                 <name>hadoop.proxyuser.yarn.hosts</name>
                 <value>{{ groups['resourcemanager'][0] }},{{ groups['resourcemanager'][1] }}</value>
           </property>
-
-          <property>
-            <name>hadoop.security.auth_to_local</name>
-            <value>
-                  RULE:[1:$1@$0](.*@{{ realm_name }})s/@.*//
-                  DEFAULT</value>
-          </property>
-
    
     - name: update etc/hadoop/hdfs-site.xml with Kerberos setting
       blockinfile:
@@ -116,7 +153,6 @@
                 <name>dfs.web.authentication.kerberos.keytab</name>
                 <value>{{ hadoop_service_principal_keytabfile }}</value>
           </property>
-          <!-- Disable https and webhdfs
           <property>
                 <name>dfs.http.policy</name>
                 <value>HTTPS_ONLY</value>
@@ -131,7 +167,7 @@
               <name>dfs.encrypt.data.transfer</name>
               <value>true</value>
           </property>
-          -->
+
           <!-- JournalNode -->
 
           <property>
