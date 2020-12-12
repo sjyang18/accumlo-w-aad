@@ -3,8 +3,7 @@
 - name: add accumulo user and spn to AAD domain
   hosts: all
   gather_facts: yes
-  become: yes
-  become_method: sudo
+  become: no
   vars_prompt:
     - name: "bind_password"
       prompt: "Password for LADP binddn"
@@ -14,18 +13,11 @@
     - name: Set login_user
       set_fact:
         login_user: "{{ lookup('env','USER') }}"
+        hostname_f: "{{ ansible_fqdn }}"
 
-    - name: Set login_user_cn
+    - name: Set user_cn with login_user
       set_fact:
-        login_user_cn: "{{ login_user }}/{{ ansible_fqdn }}"
-  
-    - name: Set sAMAccountName
-      set_fact:
-        sAMAccountName: "{{ lookup('password', '/dev/null chars=ascii_lowercase,digits length=8') }}"
-
-    - name: Debug
-      become: no
-      debug: msg="{{ login_user_cn }}, {{ sAMAccountName }}, {{ ansible_user_dir }}"
+        user_cn: "{{ login_user }}/{{ ansible_fqdn }}"
 
     - name: Check add_user.ldif.bak created by the previous successful creation exists
       stat:
@@ -45,3 +37,22 @@
     - name: Backup add_user.ldif file
       command : "mv {{ ansible_user_dir }}/add_user.ldif {{ ansible_user_dir }}/add_user.ldif.bak"
       when: not check_previous_execution.stat.exists
+
+    - name: Set user_cn with HTTP
+      set_fact:
+        user_cn: "HTTP/{{ ansible_fqdn }}"
+      when: not check_previous_execution.stat.exists
+
+    - name: Generate HTTP ldif file
+      template: 
+        src=ldapops/add_user.ldif.j2
+        dest="{{ ansible_user_dir }}/add_http.ldif"
+      when: not check_previous_execution.stat.exists
+
+    - name: Add HTTP spn
+      command: ldapadd -x -w {{ bind_password }}  -D '{{ ldap_binddn }}' -f {{ ansible_user_dir }}/add_http.ldif
+      when: not check_previous_execution.stat.exists
+
+
+    
+

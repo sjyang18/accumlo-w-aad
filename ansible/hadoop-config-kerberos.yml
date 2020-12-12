@@ -44,6 +44,9 @@
       set_fact: 
         hadoop_service_principal_keytabfile: "{{ login_home }}/{{ hadoop_service_principal_login }}.keytab"
         hadoop_service_principal: "{{ hadoop_service_principal_login }}/_HOST@{{ realm_name }}"
+        http_service_principal_keytabfile: "{{ login_home }}/HTTP.keytab"
+        http_service_principal: "HTTP/_HOST@{{ realm_name }}"
+
 
     - name: update etc/hadoop/core-site.xml with Kerberos setting
       blockinfile:
@@ -51,6 +54,7 @@
         insertbefore: '^\<\/configuration\>$'
         marker: "<!-- {mark} ANSIBLE MANAGED BLOCK -->"
         block: |
+          <!-- comment out spnego configuration for testing
           <property>
             <name>hadoop.http.authentication.cookie.domain</name>
             <value>{{ domain_name }}</value>
@@ -73,11 +77,12 @@
             <name>hadoop.http.authentication.signature.secret.file</name>
             <value>{{ login_home }}/http_secret</value>
           </property>
-
           <property>
             <name>hadoop.http.authentication.simple.anonymous.allowed</name>
             <value>false</value>
           </property>
+          -->
+
           <property>
             <name>hadoop.http.authentication.type</name>
             <value>kerberos</value>
@@ -116,10 +121,12 @@
             <value>*</value>
           </property>
 
+          <!-- commented out yarn configriation for kerbero testing
           <property>
                 <name>hadoop.proxyuser.yarn.hosts</name>
-                <value>{{ groups['resourcemanager'][0] }},{{ groups['resourcemanager'][1] }}</value>
+                <value>{{ groups['resourcemanager'][0] }}.{{ domain_name }},{{ groups['resourcemanager'][1] }}.{{ domain_name }}</value>
           </property>
+          -->
    
     - name: update etc/hadoop/hdfs-site.xml with Kerberos setting
       blockinfile:
@@ -146,16 +153,16 @@
 
           <property>
                 <name>dfs.namenode.kerberos.internal.spnego.principal</name>
-                <value>{{ hadoop_service_principal }}</value>
+                <value>{{ http_service_principal }}</value>
           </property>
 
           <property>
                 <name>dfs.web.authentication.kerberos.keytab</name>
-                <value>{{ hadoop_service_principal_keytabfile }}</value>
+                <value>{{ http_service_principal_keytabfile }}</value>
           </property>
           <property>
                 <name>dfs.http.policy</name>
-                <value>HTTPS_ONLY</value>
+                <value>HTTP_ONLY</value>
           </property>
 
           <property>
@@ -182,12 +189,7 @@
 
           <property>
                 <name>dfs.journalnode.kerberos.internal.spnego.principal</name>
-                <value>{{ hadoop_service_principal }}</value>
-          </property>
-
-          <property>
-                <name>dfs.web.authentication.kerberos.keytab</name>
-                <value>{{ hadoop_service_principal_keytabfile }}</value>
+                <value>{{ http_service_principal }}</value>
           </property>
 
           <property>
@@ -243,12 +245,12 @@
 
           <property>
                 <name>dfs.web.authentication.kerberos.principal</name>
-                <value>{{ hadoop_service_principal }}</value>
+                <value>{{  http_service_principal }}</value>
           </property>
 
           <property>
                 <name>dfs.web.authentication.kerberos.keytab</name>
-                <value>{{ hadoop_service_principal_keytabfile }}</value>
+                <value>{{ http_service_principal_keytabfile }}</value>
           </property>
 
 

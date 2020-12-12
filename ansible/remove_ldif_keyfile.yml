@@ -1,0 +1,24 @@
+## This playbook removes ldif and keytab file 
+
+- name: removes ldif and keytab file 
+  hosts: all
+  gather_facts: yes
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: Set accumulo_service_principal_login
+      set_fact:
+        login_home: "{{ lookup('env','HOME') }}"
+        accumulo_service_principal_login: "{{ lookup('env','USER') }}"
+
+    - name: Set keberos keytab file and service principal name
+      set_fact: 
+        accumulo_service_principal_keytabfile: "{{ login_home }}/{{ accumulo_service_principal_login }}.keytab"
+
+    - name: Remove *.ldif.bak file 
+      shell: "rm -rf {{ ansible_user_dir }}/*.ldif.bak"
+
+    - name: Remove keytab file
+      file:
+        path: "{{ accumulo_service_principal_keytabfile }}"
+        state: absent
