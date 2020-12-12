@@ -3,7 +3,7 @@
 - name: removes ldif and keytab file 
   hosts: all
   gather_facts: yes
-  become: yes
+  become: no
   become_method: sudo
   tasks:
     - name: Set accumulo_service_principal_login
