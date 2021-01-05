@@ -84,11 +84,6 @@
           -->
 
           <property>
-            <name>hadoop.http.authentication.type</name>
-            <value>kerberos</value>
-          </property>
-
-          <property>
               <name>hadoop.security.authentication</name>
               <value>kerberos</value>
           </property>
@@ -162,7 +157,7 @@
           </property>
           <property>
                 <name>dfs.http.policy</name>
-                <value>HTTP_ONLY</value>
+                <value>HTTPS_ONLY</value>
           </property>
 
           <property>
