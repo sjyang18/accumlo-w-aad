@@ -1,7 +1,11 @@
 # Accumulo with AAD Integration Tooling
+This repo contains the extension to apache fluo-muchos to convert the generic Accumulo cluster to Azure AD integrated one with Azure AD Domain Services. The work is shared as the proof-of-concept and as it is.
 
 ## Preparation tasks before running the following tooling
-After you set up Accumulo with fluo-muchos, make FQDN changes to core-site.xml and hdfs-site.xml: i.e find the host name reference and replace with fqdn host name.  For example, aadcluster-1 to aadcluster-1.agceci.onmicrosoft.com in my experiment.
+After you set up Accumulo with fluo-muchos, complete the following pre-requisite tasks:
+1. make FQDN changes to core-site.xml and hdfs-site.xml: i.e find the host name references and replace with fqdn host names. For example, rename aadcluster-1 to aadcluster-1.agceci.onmicrosoft.com in my experiment.
+2. Then, enable the TLS on hadoop. Steps are documented in [TLSonHadoop.md](TLSonHadoop.md).
+3. And, you will peer the VNET of your accumulo cluster to the VNET with your AAD Domain Services. Make sure to add custom DNS servers to your VNET and reboot your VMSS before running the th following domain utility tooling. Refer to this document (https://docs.microsoft.com/en-us/azure/active-directory-domain-services/tutorial-configure-networking#configure-dns-servers-in-the-peered-virtual-network).
 
 ## Join Azure VMSS (with Centos OS) to Azure Active Directory (AAD) Domain Services & Setup SPN and keytab files
 This repo contains ansible playbooks and python helper code to enable the tasks we identified in my previous article (https://github.com/sjyang18/mydocs/blob/dev/accumulo-aad/wo_hdinsight/accumulo_aad_wo_hdinsight.md). The tasks we identified in that article before reconfiguring Accumulo services with kerberos are:
@@ -9,9 +13,7 @@ This repo contains ansible playbooks and python helper code to enable the tasks 
 2. Join your cluster to your target AAD domain
 3. Generate users and service principals and keytab files
 
-As of now, it is in the proof-of-concept phase. For simplicity, we first set up a VNET, setup peering to the VNET with AAD Domain Services, and provisioned a VMSS in that VNET.
-
-To run this playbook, login into a proxy VM of accumulo cluster, setup with apache fluo-mucho. Then, git clone this repo and copy the hosts file from fluo-mucho. Add custom variables with your values. Note that in the example below, we set 'accumulo' to a ldap_binddn value, which mean this user exists in my AAD and it is a member of `AAD DC Administrators`. You will be prompted for the password of this user during playbook execution.
+To run this playbook, login into a proxy VM of accumulo cluster. Then, git clone this repo and copy the hosts file from fluo-mucho. Add custom variables with your values. Note that in the example below, we set 'accumulo' to a ldap_binddn value, which mean this user exists in my AAD and it is a member of `AAD DC Administrators`. You will be prompted for the password of this user during playbook execution.
 
 ```
 [accumulomaster]
@@ -74,7 +76,7 @@ hadoop_home = '{{ install_dir }}/hadoop-{{ hadoop_version }}'
 hadoop_major_version = {{ hadoop_version.split('.')[0] }}
 ```
 
-Use lib/genEncodedPasswd.py to geneate your own encoded password. Original passowrd and encoded one would be used to create users and retrieve keytab files for spn mapped to those users.
+Use `lib/genEncodedPasswd.py` to geneate your own initial encoded password for users and the corresponding SPN. Original password and encoded one would be used to create users and retrieve keytab files for spn mapped to those users.
 
 Run the following sequence of ansible playbooks.
 
@@ -85,7 +87,7 @@ ansible-playbook -i hosts ansible/join_domain.yml
 ansible-playbook -i hosts ansible/ldap_adduser.yml
 ansible-playbook -i hosts ansible/retreive_keytab_file.yml
 # stop-dfs.sh on the first name node
-# enable tls configuration. It turns out this is must in order to bring up Hadoop datanode with Kerberos.
+# make sure to enable tls configuration before running the following. It turns out this is must in order to bring up Hadoop datanodes with Kerberos security.
 ansible-playbook -i hosts ansible/hadoop-config-kerberos.yml
 # start-dfs.sh and address any failures
 # verify that hadoop is enabled with kerberos with 'hdfs dfs -put /etc/hosts /' and 'hdfs dfs -ls /'. 
@@ -101,7 +103,7 @@ Answer: Your VNET, which is peered with AAD DS domain services VNET, might not b
 
 ## Question: In HDFS configuration, _HOST in HTTP/_HOST@REALM_NAME are not replaced with FQDN and failed to authenticate with Kerberos.
 
-Answer: Modify hostname(s) in hdfs-site.xml and core-site.xml with the FQDN. You may update this in the first head node and copy to all other nodes.
+Answer: This was observed when your namenode host names in core-site.xml and hdfs-site.xml are not FQDN names. Modify hostname(s) in hdfs-site.xml and core-site.xml with the FQDN, as described in the preparation section. You may update this in the first head node and copy to all other nodes.
 
 ## Question: My namenodes are not up when invoking start-dfs.sh. How do I recover my namenodes?
 

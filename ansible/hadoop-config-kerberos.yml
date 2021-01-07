@@ -54,7 +54,7 @@
         insertbefore: '^\<\/configuration\>$'
         marker: "<!-- {mark} ANSIBLE MANAGED BLOCK -->"
         block: |
-          <!-- comment out spnego configuration for testing
+          <!-- this configuration is not needed for this experiment. leaving here for future reference
           <property>
             <name>hadoop.http.authentication.cookie.domain</name>
             <value>{{ domain_name }}</value>
