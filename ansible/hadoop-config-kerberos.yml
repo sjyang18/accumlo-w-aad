@@ -116,12 +116,18 @@
             <value>*</value>
           </property>
 
-          <!-- commented out yarn configriation for kerbero testing
+          <property>
+            <name>hadoop.security.auth_to_local</name>
+            <value>
+          RULE:[1:$1@$0](.*@{{ realm_name }})s/@.*///L
+          RULE:[2:$1@$0]({{ domain_admin_username }}@{{ realm_name }})s/.*/{{ domain_admin_username }}/
+          DEFAULT</value>
+          </property>
+
           <property>
                 <name>hadoop.proxyuser.yarn.hosts</name>
                 <value>{{ groups['resourcemanager'][0] }}.{{ domain_name }},{{ groups['resourcemanager'][1] }}.{{ domain_name }}</value>
           </property>
-          -->
    
     - name: update etc/hadoop/hdfs-site.xml with Kerberos setting
       blockinfile:

@@ -112,3 +112,5 @@ Answer: using `hadoop namenode -recover` command, you may recover namenodes. You
 ## Question: Does hadoop kerberos configuration automatically refresh kerberos token at the regular interval?
 Answer: My obervation is No. From the discussion with my collegue, my recommendation is to set a daily cron job to run `kdestroy && kinit` command.
 
+## Question: I enabled Kerbero configuration on Accumulo and see "code:BAD_CREDENTIALS" error on accumulo tserver. Tserver does not accept the credential from Accumulo master.
+Answer: Check if all host name references of accumulo.properties and accumulo-client.propertis use FQDN host names. For example, make sure `instance.zookeepers` and `instance.zookeeper.host` has FQDN host names.
