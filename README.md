@@ -4,7 +4,7 @@ This repo contains the extension to apache fluo-muchos to convert the generic Ac
 ## Preparation tasks before running the following tooling
 After you set up Accumulo with fluo-muchos, complete the following pre-requisite tasks:
 1. make FQDN changes to core-site.xml and hdfs-site.xml: i.e find the host name references and replace with fqdn host names. For example, rename aadcluster-1 to aadcluster-1.agceci.onmicrosoft.com in my experiment.
-2. Then, enable the TLS on hadoop. Steps are documented in [TLSonHadoop.md](TLSonHadoop.md).
+2. Then, enable the TLS on hadoop. Steps are documented in [TLSonHadoop.md](TLSonHadoop.md). If your fluo-muchos includes the internal patch (https://dev.azure.com/AZGlobal/AG%20E2E%5E2%20-%20Secure%20Data%20Estate/_git/fluo-muchos/pullrequest/2794), follow this tutorial ([domain.plus.tls.md](tutorials/domain_plus_tls/domain.plus.tls.md)) and skip last of this steps below.
 3. And, you will peer the VNET of your accumulo cluster to the VNET with your AAD Domain Services. Make sure to add custom DNS servers to your VNET and reboot your VMSS before running the th following domain utility tooling. Refer to this document (https://docs.microsoft.com/en-us/azure/active-directory-domain-services/tutorial-configure-networking#configure-dns-servers-in-the-peered-virtual-network).
 
 ## Join Azure VMSS (with Centos OS) to Azure Active Directory (AAD) Domain Services & Setup SPN and keytab files
