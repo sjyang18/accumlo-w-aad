@@ -72,8 +72,8 @@ ansible-playbook -i ~/ansible/conf/hosts accumulo-w-aad/ansible/join_domain.yml
 
 ```
 
-## Reconfigure Accumulo cluster with FQDN and TLS
-Add the following variables to your host file, if you don't have. These variables should be set from muchos.properties file and when running 'sync' command of fluo-muchos. If you are not setting up a domain-joined cluster. remove cluster_domain_name variable.
+## Update ansible host and group variable files with FQDN
+Skip this part if you are not setting up a domain-join cluster. Add the following variables to your ansible/conf/host file.
 
 ```
 # this variable should be the same as domain_name vairlabe used before. 
@@ -81,10 +81,27 @@ cluster_domain_name = XXX.onmicrosoft.com
 tls_password = $Update_Password
 ```
 
+And, you also need to update zookeeper_connect varialbe in ansible/conf/host file. This variable is generated and set by lib/muchos/config/base.py. And, since we are running the conversion outside of fluo-muchos, this has to be manually updated. 
+```
+#zookeeper_connect = {% for host in hdfs_volume_mapping[nameservice_id].zookeeper %}{{ host }}:2181{% if not loop.last %},{% endif %}{% endfor %}
+
+zookeeper_connect = {% for host in hdfs_volume_mapping[nameservice_id].zookeeper %}{% if (cluster_domain_name is not defined) or (cluster_domain_name|length == 0) %}{{ host }}:2181{% else %}{{ host }}.{{ cluster_domain_name }}:2181{% endif %}{% if not loop.last %},{% endif %}{% endfor %}
+```
+Also, update accumulo_zooker_connect variable in ansible/group_vars/all, too.
+```
+accumulo_zookeeper_connect: "{% for host in hdfs_volume_mapping[nameservice_id].zookeeper %}{% if (cluster_domain_name is not defined) or (cluster_domain_name|length == 0) %}{{ host }}:2181{% else %}{{ host }}.{{ cluster_domain_name }}:2181{% endif %}{% if not loop.last %},{% endif %}{% endfor %}"
+```
+
+
+## Reconfigure Accumulo cluster with TLS
 Then, run the enable-tls.yml ansible playbook with extra variables (like tls_password, etc). 
 
 ```
-ansible-playbook -i enable-tls.yml -e "tls_password=$your_password_here"
+ansible-playbook ansible/enable-tls.yml -i ansible/conf/hosts -e "tls_password=$your_password_here"
+
+# you may pass cluster_domain_name value if you are not have this in your host file
+ansible-playbook ansible/enable-tls.yml -i ansible/conf/hosts -e "tls_password=$your_password_here cluster_domain_name=XXX.onmicrosoft.com"
+
 ```
 
 
