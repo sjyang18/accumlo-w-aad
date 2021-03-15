@@ -81,18 +81,6 @@ cluster_domain_name = XXX.onmicrosoft.com
 tls_password = $Update_Password
 ```
 
-And, you also need to update zookeeper_connect varialbe in ansible/conf/host file. This variable is generated and set by lib/muchos/config/base.py. And, since we are running the conversion outside of fluo-muchos, this has to be manually updated. 
-```
-#zookeeper_connect = {% for host in hdfs_volume_mapping[nameservice_id].zookeeper %}{{ host }}:2181{% if not loop.last %},{% endif %}{% endfor %}
-
-zookeeper_connect = {% for host in hdfs_volume_mapping[nameservice_id].zookeeper %}{% if (cluster_domain_name is not defined) or (cluster_domain_name|length == 0) %}{{ host }}:2181{% else %}{{ host }}.{{ cluster_domain_name }}:2181{% endif %}{% if not loop.last %},{% endif %}{% endfor %}
-```
-Also, update accumulo_zooker_connect variable in ansible/group_vars/all, too.
-```
-accumulo_zookeeper_connect: "{% for host in hdfs_volume_mapping[nameservice_id].zookeeper %}{% if (cluster_domain_name is not defined) or (cluster_domain_name|length == 0) %}{{ host }}:2181{% else %}{{ host }}.{{ cluster_domain_name }}:2181{% endif %}{% if not loop.last %},{% endif %}{% endfor %}"
-```
-
-
 ## Reconfigure Accumulo cluster with TLS
 Then, run the enable-tls.yml ansible playbook with extra variables (like tls_password, etc). 
 
