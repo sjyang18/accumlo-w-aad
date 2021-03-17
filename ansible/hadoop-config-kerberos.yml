@@ -1,7 +1,7 @@
 ---
 
 - name: generate http_secrete file
-  hosts: all
+  hosts: hadoop
   gather_facts: no
   become: no
   tasks:

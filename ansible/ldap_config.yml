@@ -2,7 +2,7 @@
 ## This playbook runs ldap client installation and configuration
 
 - name: ldap client installation and configuration
-  hosts: all
+  hosts: accumulo, hadoop
   gather_facts: yes
   become: yes
   become_method: sudo

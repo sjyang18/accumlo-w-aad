@@ -1,7 +1,18 @@
 ## This playbook adds login_user to AAD domain
 
+- name: Have a directory to fetch keytab files
+  hosts: localhost
+  tasks:
+    - name: Have a directory to fetch keytab files
+      file:
+        state: "{{ item }}"
+        path: "{{ ansible_user_dir }}/keytabs"
+      with_items:
+        - absent
+        - directory
+
 - name: add accumulo user and spn to AAD domain
-  hosts: all
+  hosts: accumulo, hadoop
   gather_facts: yes
   become: no
   vars_prompt:
@@ -14,10 +25,11 @@
       set_fact:
         login_user: "{{ lookup('env','USER') }}"
         hostname_f: "{{ ansible_fqdn }}"
+        login_user_cn: "{{ lookup('env','USER') }}/{{ ansible_fqdn }}"
 
     - name: Set user_cn with login_user
       set_fact:
-        user_cn: "{{ login_user }}/{{ ansible_fqdn }}"
+        user_cn: "{{ login_user_cn }}"
 
     - name: Check add_user.ldif.bak created by the previous successful creation exists
       stat:
@@ -53,6 +65,34 @@
       command: ldapadd -x -w {{ bind_password }}  -D '{{ ldap_binddn }}' -f {{ ansible_user_dir }}/add_http.ldif
       when: not check_previous_execution.stat.exists
 
+    - name: Retreive login_user's keytab from Azure AAD domain service
+      expect:
+        command: ktutil
+        responses:
+          ktutil:
+            - "addent -password  -p {{ login_user_cn }}@{{ realm_name }} -k 1 -e RC4-HMAC"
+            - "wkt {{ ansible_user_dir }}/{{ login_user }}.{{ ansible_hostname }}.keytab"
+            - "quit"
+          Password(.*): "{{ decoded_user_init_password }}"
 
-    
+    - name: Retreive HTTP's keytab from Azure AAD domain service
+      expect:
+        command: ktutil
+        responses:
+          ktutil:
+            - "addent -password  -p HTTP/{{ ansible_fqdn }}@{{ realm_name }} -k 1 -e RC4-HMAC"
+            - "wkt {{ ansible_user_dir }}/HTTP.{{ ansible_hostname }}.keytab"
+            - "quit"
+          Password(.*): "{{ decoded_user_init_password }}"
 
+    - name: Fetch login_user keytab files
+      fetch:
+        src:  "{{ ansible_user_dir }}/{{ login_user }}.{{ ansible_hostname }}.keytab"
+        dest: "{{ ansible_user_dir }}/keytabs/"
+        flat: yes
+
+    - name: Fetch HTTP keytab files
+      fetch:
+        src:  "{{ ansible_user_dir }}/HTTP.{{ ansible_hostname }}.keytab"
+        dest: "{{ ansible_user_dir }}/keytabs/"
+        flat: yes
