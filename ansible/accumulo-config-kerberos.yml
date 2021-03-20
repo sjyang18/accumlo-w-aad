@@ -4,18 +4,14 @@
 - name: changes the existing accumulo configs with kerberos
   hosts: accumulo
   gather_facts: yes
-  become: yes
-  become_method: sudo
+  become: no
   tasks:
-    - name: Set accumulo_service_principal_login
-      set_fact:
-        login_home: "{{ lookup('env','HOME') }}"
-        accumulo_service_principal_login: "{{ lookup('env','USER') }}"
+    - import_tasks: tasks/common_vars.yml
 
     - name: Set keberos keytab file and service principal name
-      set_fact: 
-        accumulo_service_principal_keytabfile: "{{ login_home }}/{{ accumulo_service_principal_login }}.keytab"
-        accumulo_service_principal: "{{ accumulo_service_principal_login }}/_HOST@{{ realm_name }}"
+      set_fact:
+        accumulo_service_principal_keytabfile: "{{ keytabs_deployment_dir }}/{{ service_principal_login }}.keytab"
+        accumulo_service_principal: "{{ service_principal_login }}/_HOST@{{ realm_name }}"
 
     - name: check for spn keytab file exists
       stat: path={{ accumulo_service_principal_keytabfile }}
@@ -34,15 +30,17 @@
       when: not krb5_conf_check.stat.exists
 
     - name: "'-Djava.security.krb5.conf=/etc/krb5.conf' to accumulo-env.sh"
-      lineinfile:
+      blockinfile:
         path: '{{ accumulo_home }}/conf/accumulo-env.sh'
-        regexp: '-Djava\.security\.krb5\.conf=(.*)$'
-        insertafter: '^JAVA_OPTS=\("\$\{JAVA_OPTS\[\@\]\}"'
-        line: '  "-Djava.security.krb5.conf=/etc/krb5.conf"'
+        marker: "# {mark} ANSIBLE MANAGED BLOCK for Kerberos"
+        insertbefore: ^export JAVA_OPTS
+        block: |
+          {%raw%}JAVA_OPTS=("${JAVA_OPTS[@]}" "-Djava.security.krb5.conf=/etc/krb5.conf"){%endraw%}
 
     - name: update accumulo.properties with Kerberos setting
       blockinfile:
         path: '{{ accumulo_home }}/conf/accumulo.properties'
+        marker: "# {mark} ANSIBLE MANAGED BLOCK for Kerberos"
         insertafter: '^instance.secret=(.*)$'
         block: |
           instance.security.authenticator=org.apache.accumulo.server.security.handler.KerberosAuthenticator
@@ -86,5 +84,5 @@
         block: |
           sasl.enabled=true
           sasl.qop=auth
-          sasl.kerberos.server.primary={{ accumulo_service_principal_login }}
+          sasl.kerberos.server.primary={{ service_principal_login }}
 

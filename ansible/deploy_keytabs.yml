@@ -1,0 +1,33 @@
+- name: Deploy Keytab files
+  hosts: hadoop
+  become: yes
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: Setup Depolyment Directory
+      file:
+        state: "{{ item }}"
+        path: "{{ keytabs_deployment_dir }}"
+      with_items:
+        - absent
+        - directory
+
+    - name: pick up & deploy the host specific keytab file of service_principal_login and HTTP
+      copy:
+        src:  "{{ keytabs_pickup_dir }}/{{ item }}.{{ inventory_hostname }}.keytab"
+        dest: "{{ keytabs_deployment_dir }}/{{ item }}.keytab"
+      with_items:
+        - "{{ service_principal_login }}"
+        - HTTP
+
+    - name: change owner of keytabs_deployment_dir
+      file:
+        path: '{{ keytabs_deployment_dir }}'
+        owner: '{{ service_principal_login }}'
+        group: root
+        mode: u+rw,g+rw,o-rwx
+        recurse: yes
+
+
+
+
+

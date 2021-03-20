@@ -5,15 +5,12 @@
   gather_facts: yes
   become: no
   tasks:
-    - name: Set zookeeper_service_principal_login
-      set_fact:
-        login_home: "{{ lookup('env','HOME') }}"
-        zookeeper_service_principal_login: "{{ lookup('env','USER') }}"
+    - import_tasks: tasks/common_vars.yml
 
     - name: Set keberos keytab file and service principal name
       set_fact: 
-        zookeeper_service_principal_keytabfile: "{{ login_home }}/{{ zookeeper_service_principal_login }}.keytab"
-        zookeeper_service_principal: "{{ zookeeper_service_principal_login }}/{{ ansible_fqdn }}@{{ realm_name }}"
+        zookeeper_service_principal_keytabfile: "{{ keytabs_deployment_dir }}/{{ service_principal_login }}.keytab"
+        zookeeper_service_principal: "{{ service_principal_login }}/{{ ansible_fqdn }}@{{ realm_name }}"
 
     - name: Generate zookeeper-server.jaas
       template:
@@ -28,13 +25,17 @@
     - name: update conf/zookeeper-env.sh with Kerberos setting
       blockinfile:
         path: '{{ zookeeper_home }}/conf/zookeeper-env.sh'
+        insertafter: EOF
+        marker: "# {mark} ANSIBLE MANAGED BLOCK for Kerberos"
         block: |
-          export SERVER_JVMFLAGS="-Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-server.jaas"
-          export CLIENT_JVMFLAGS="-Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-client.jaas"
+          export SERVER_JVMFLAGS="-Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-server.jaas ${SERVER_JVMFLAGS}"
+          export CLIENT_JVMFLAGS="-Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-client.jaas ${CLIENT_JVMFLAGS}"
    
     - name: update conf/zoo.cfg with Kerberos setting
       blockinfile:
         path: '{{ zookeeper_home }}/conf/zoo.cfg'
+        insertafter: EOF
+        marker: "# {mark} ANSIBLE MANAGED BLOCK for Kerberos"
         block: |
           authProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider
           jaasLoginRenew=3600000

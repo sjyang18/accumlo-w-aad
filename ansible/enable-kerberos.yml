@@ -1,0 +1,5 @@
+----
+- import_playbook: ldap_config.yml
+- import_playbook: zookeeper-config-kerberos.yml
+- import_playbook: hadoop-config-kerberos.yml
+- import_playbook: accumulo-config-kerberos.yml
