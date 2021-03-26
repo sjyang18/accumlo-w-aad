@@ -12,6 +12,7 @@
       set_fact:
         accumulo_service_principal_keytabfile: "{{ keytabs_deployment_dir }}/{{ service_principal_login }}.keytab"
         accumulo_service_principal: "{{ service_principal_login }}/_HOST@{{ realm_name }}"
+        accumulo_service_principal_w_fqdn: "{{ service_principal_login }}/{{ ansible_fqdn }}@{{ realm_name }}"
 
     - name: check for spn keytab file exists
       stat: path={{ accumulo_service_principal_keytabfile }}
@@ -29,13 +30,18 @@
       fail: msg="/etc/krb5.conf does not exist. Run join_domain.yml playbook first"
       when: not krb5_conf_check.stat.exists
 
+    - name: Generate accumulo.jaas
+      template:
+        src=conf/accumulo.jaas.j2
+        dest='{{ accumulo_home }}/conf/accumulo.jaas'
+
     - name: "'-Djava.security.krb5.conf=/etc/krb5.conf' to accumulo-env.sh"
       blockinfile:
         path: '{{ accumulo_home }}/conf/accumulo-env.sh'
         marker: "# {mark} ANSIBLE MANAGED BLOCK for Kerberos"
         insertbefore: ^export JAVA_OPTS
         block: |
-          {%raw%}JAVA_OPTS=("${JAVA_OPTS[@]}" "-Djava.security.krb5.conf=/etc/krb5.conf"){%endraw%}
+          JAVA_OPTS=("${JAVA_OPTS[@]}" "-Djavax.security.auth.useSubjectCredsOnly=false" "-Djava.security.auth.login.config={{ accumulo_home }}/conf/accumulo_jaas.conf")
 
     - name: update accumulo.properties with Kerberos setting
       blockinfile:
@@ -58,6 +64,8 @@
 
           general.delegation.token.lifetime=7d
           general.delegation.token.update.interval=1d
+          instance.rpc.sasl.allowed.user.impersonation=$PROXY_USER:*
+          instance.rpc.sasl.allowed.host.impersonation=*
    
     - name: update accumulo-client.properties with Kerberos setting (auth.type)
       lineinfile:
@@ -69,7 +77,7 @@
       lineinfile:
         path: '{{ accumulo_home }}/conf/accumulo-client.properties'
         regexp: '^auth.principal=(.*)$'
-        line: 'auth.principal={{ accumulo_service_principal }}' 
+        line: 'auth.principal={{ accumulo_service_principal_w_fqdn }}' 
 
     - name: update accumulo-client.properties with Kerberos setting (auth.token)
       lineinfile:
@@ -85,4 +93,3 @@
           sasl.enabled=true
           sasl.qop=auth
           sasl.kerberos.server.primary={{ service_principal_login }}
-
