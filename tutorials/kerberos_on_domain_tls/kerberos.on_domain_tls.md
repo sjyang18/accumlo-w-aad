@@ -1,8 +1,6 @@
 # Enabling Kerberos on domain-enabled and TLS-enabled Accumulo cluster
 Given you have enabled Domain and TLS in your Accumulo cluster (for example, in our previous tutorial, I employed Azure AAD Domain service for this purpose, and the tutorial is available in https://github.com/sjyang18/accumulo-w-aad/blob/main/tutorials/domain_plus_tls/domain.plus.tls.md), this time, we are going to add & modify kerberos-related configuration to the cluster. In general, this involves the two stages: 1) adding service principals and their keytab files to your selected domain/kerberos service, 2) adding & modifying hadoop and accumulo configuration for enabling kerberos with keytab files. Currently, we have multiple domain services & kerberos service products and different methodologies to setting up e& gnerating keytab files. To avoid the tightly-coupled solution, this tutorial will show one replacable first stage of generating keytab files from the same cluster environment we created in the previous tutorial, and demonstrate the second stage deployment with the expected keytabs file name patterns.  
 
-One caveat here is that I was only able to verify that following configuration to make kerberos work in Accumulo: **Disable TLS in zookeeper, Enable TLS & Kerberos in Haddoop, and Switch TLS to SASL (Kerberos) in Accumulo.**  I have captured the issue and report to accumulo github (https://github.com/apache/accumulo/issues/1984).
-
 ## Stop Accumulo services, HDFS, and zookeeper services
 Before we proceed, make sure to stop services from one of head nodes. Follow this order of shutting service.
 
@@ -72,73 +70,8 @@ By chance, if you see the following error, you might have to update the password
 ldap_sasl_bind(SIMPLE): Can't contact LDAP server (-1)
 ```
 
-## Disable TLS from Zookeeper
-Currently, Accumulo supports either SSL or SASL (for Kerberos), and thus we need to disable TLS in the zookeeper layer and remove zookeeper ssl client JVM switches from hadoop failover controller. The detailed issue can be captured and reported in (https://github.com/apache/accumulo/issues/1984).
-
-To disable SSL from zookeeper, make the following configuration changes and replicate over other zookeeper nodes with scp.
-
-```
-# in /opt/muchos/install/apache-zookeeper-3.5.9-bin/conf/zoo.cfg.notls.2191
-# change secureClientPort to clientPort
-#secureClientPort=2191
-cientPort=2191
-
-# comment out or remove the ssl configurations
-#serverCnxnFactory=org.apache.zookeeper.server.NettyServerCnxnFactory
-#sslQuorum=true
-#ssl.quorum.keyStore.location=/opt/muchos/install/ssl/host-keystore.jks
-#ssl.quorum.keyStore.password=hadoop
-#ssl.quorum.trustStore.location=/opt/muchos/install/ssl/truststore.jks
-#ssl.quorum.trustStore.password=hadoop
-#ssl.keyStore.location=/opt/muchos/install/ssl/host-keystore.jks
-#ssl.keyStore.password=hadoop
-#ssl.trustStore.location=/opt/muchos/install/ssl/truststore.jks
-#ssl.trustStore.password=hadoop
-
-```
-Also need to remove CLIENT_JVMFLAGS and SERVER_JVMFLAGS from zookeeper-env.sh
-```
-# in /opt/muchos/install/apache-zookeeper-3.5.9-bin/conf/zookeeper-env.sh
-# remove or comment out CLIENT_JVMFLAGS and SERVER_JVMFLAGS
-
-#export CLIENT_JVMFLAGS="-Dzookeeper.clientCnxnSocket=org.apache.zookeeper.ClientCnxnSocketNetty \
-#    -Dzookeeper.client.secure=true \
-#    -Dzookeeper.ssl.keyStore.location=/opt/muchos/install/ssl/host-keystore.jks \
-#    -Dzookeeper.ssl.keyStore.password=hadoop \
-#    -Dzookeeper.ssl.trustStore.location=/opt/muchos/install/ssl/truststore.jks \
-#    -Dzookeeper.ssl.trustStore.password=hadoop"
-
-#export SERVER_JVMFLAGS="-Dzookeeper.serverCnxnFactory=org.apache.zookeeper.server.NettyServerCnxnFactory \
-#    -Dzookeeper.ssl.keyStore.location=/opt/muchos/install/ssl/host-keystore.jks \
-#    -Dzookeeper.ssl.keyStore.password=hadoop \
-#    -Dzookeeper.ssl.trustStore.location=/opt/muchos/install/ssl/truststore.jks \
-#    -Dzookeeper.ssl.trustStore.password=hadoop"
-```
-In my cluster, I used the following scp commands to replicate configurations.
-```
-cd /opt/muchos/install/apache-zookeeper-3.5.9-bin/conf
-scp zoo.cfg accucluster3-1:$(pwd)/
-scp zoo.cfg accucluster3-2:$(pwd)/
-scp zookeeper-env.sh accucluster3-2:$(pwd)/
-scp zookeeper-env.sh accucluster3-2:$(pwd)/
-```
-
-In addition, since we disable TLS in zookeeper, we also need to disable zookeeper ssl clients jvm switches in HDFS_ZKFC.
-```
-# in /opt/muchos/install/hadoop-3.3.0/etc/hadoop/hadoop-env.sh,
-# comment out or remove CLIENT_JVMFLAGS with zookeeper.ssl.* jvm flags
-#CLIENT_JVMFLAGS="-Dzookeeper.clientCnxnSocket=org.apache.zookeeper.ClientCnxnSocketNetty \
-#-Dzookeeper.client.secure=true \
-#-Dzookeeper.ssl.keyStore.location=/opt/muchos/install/ssl/host-keystore.jks \
-#-Dzookeeper.ssl.keyStore.password=hadoop \
-#-Dzookeeper.ssl.trustStore.location=/opt/muchos/install/ssl/truststore.jks \
-#-Dzookeeper.ssl.trustStore.password=hadoop"
-
-# make sure HDFS_ZKFC_OPTS not to include $CLIENT_JVMFLAGS
-export HDFS_ZKFC_OPTS="-server -XX:+UseG1GC -XX:MaxGCPauseMillis=400 -XX:InitiatingHeapOccupancyPercent=35 -XX:ParallelGCThreads=8 -XX:ConcGCThreads=2 -Xms4G -Xmx4G -verbose:gc -Xlog:gc:/var/data/data2/logs/hadoop/gc-zkfc.log-`date +'%Y%m%d%H%M'`:time,uptime:filecount=10,filesize=100M -XX:ErrorFile=/var/data/data2/logs/hadoop/hs_err_pid%p.log -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/var/data/data2/logs/hadoop"
-
-```
-Note that we are still keeping TLS configurations in hadoop side with ssl-client.xml and ssl-server.xml, and other https protocol configurations in core-site.xml, hdfs-site.xml, mapred-site.xml, and yarn-site.xml. We just turn off TLS client to zookeeper in HDFS_ZKFC, since zookeeper is no longer running with server-side TLS configuration.
+## Switch off SSL in Accumulo
+Comment out instance.rpc.ssl.enabled in accumulo.properties and ssl.enabled in accumulo-client.properties. We will enable instance.rpc.sasl for kerberos later. **Note that even we comment out these properties, we still have zookeeper.ssl.* JVM flags in `accumulo-env.sh`**
 
 ## Add Kerberos configuration in Hadoop and Accumulo
 Deploy kerberos configuration to Hadoop and Accumulo with the following command.
@@ -150,7 +83,7 @@ ansible-playbook -i ~/hosts accumulo-w-aad/ansible/enable-kerberos.yml
 If needed, you may override variable 'service_principal_login' and 'keytabs_pickup_dir' with -e switch. The default values for these variables are current user login in bastion host, and its ~/keytabs directory respectively.
 
 
-## Administratove User
+## Administrative User
 As mentioned in Accumulo user document (https://accumulo.apache.org/docs/2.x/security/kerberos#administrative-user), the Accumulo still has a single user 'root' with administrative permission. This has to change to authenticate with kerberos with 'accumulo init --reset-security' command. **Make sure that you stop accumulo services before resetting the administrative user.** Let's say you have accumulo_admin@EXAMPLE.COM as your admin. Before resetting admin, login in with your service principal user name (i.e. azureuser in my case) to Accumulo master/manager nodes, run kinit with your service principal and its keytab file. For example in my cluster,
 
 ```
@@ -166,6 +99,7 @@ Running against secured HDFS
 Principal (user) to grant administrative privileges to : acculumo_admin@EXAMPLE.COM
 Enter initial password for accumulo_admin@EXAMPLE.COM (this may not be applicable for your security setup):
 Confirm initial password for accumulo_admin@EXAMPLE.COM:
+2021-03-31T22:18:11,900 [handler.KerberosAuthenticator] INFO : Removed /accumulo/f7bf7bd7-f823-479d-bc89-f887c5f99244/users/ from zookeeper
 ```
 
 If it is ok to lose existing datta in accumulo, you could completely drop accumulo directory from HDFS and rerun 'accumulo init' without '--reset-security', which I did during troubleshooting.
@@ -173,6 +107,27 @@ If it is ok to lose existing datta in accumulo, you could completely drop accumu
 ```
 hdfs dfs -rm -r /accumulo
 accumulo init
+
+OpenJDK 64-Bit Server VM warning: Option UseConcMarkSweepGC was deprecated in version 9.0 and will likely be removed in a future release.
+2021-03-31T22:46:34,145 [conf.SiteConfiguration] INFO : Found Accumulo configuration on classpath at /opt/muchos/install/accumulo-2.1.0-SNAPSHOT/conf/accumulo.properties
+2021-03-31T22:46:34,298 [security.SecurityUtil] INFO : Attempting to login with keytab as azureuser/accucluster3-0.example.onmicrosoft.com@EXAMPLE.ONMICROSOFT.COM
+2021-03-31T22:46:35,437 [security.UserGroupInformation] INFO : Login successful for user azureuser/accucluster3-0.example.onmicrosoft.com@EXAMPLE.ONMICROSOFT.COM using keytab file /opt/muchos/install/keytabs/azureuser.keytab. Keytab auto renewal enabled : false
+2021-03-31T22:46:35,438 [security.SecurityUtil] INFO : Succesfully logged in as user azureuser/accucluster3-0.example.onmicrosoft.com@EXAMPLE.ONMICROSOFT.COM
+2021-03-31T22:46:36,028 [init.Initialize] INFO : Hadoop Filesystem is hdfs://accucluster3
+2021-03-31T22:46:36,029 [init.Initialize] INFO : Accumulo data dirs are [[hdfs://accucluster3/accumulo]]
+2021-03-31T22:46:36,029 [init.Initialize] INFO : Zookeeper server is accucluster3-0.example.onmicrosoft.com:2191,accucluster3-1.example.onmicrosoft.com:2191,accucluster3-2.example.onmicrosoft.com:2191
+2021-03-31T22:46:36,030 [init.Initialize] INFO : Checking if Zookeeper is available. If this hangs, then you need to make sure zookeeper is running
+Instance name : muchos
+Instance name "muchos" exists. Delete existing entry from zookeeper? [Y/N] : Y
+Running against secured HDFS
+Principal (user) to grant administrative privileges to : accumulo@EXAMPLE.ONMICROSOFT.COM
+2021-03-31T22:47:12,163 [Configuration.deprecation] INFO : dfs.replication.min is deprecated. Instead, use dfs.namenode.replication.min
+2021-03-31T22:47:13,126 [Configuration.deprecation] INFO : dfs.block.size is deprecated. Instead, use dfs.blocksize
+2021-03-31T22:47:13,171 [bcfile.Compression] INFO : Trying to load codec class org.apache.hadoop.io.compress.LzoCodec for io.compression.codec.lzo.class
+2021-03-31T22:47:13,175 [bcfile.Compression] INFO : Trying to load codec class org.apache.hadoop.io.compress.SnappyCodec for io.compression.codec.snappy.class
+2021-03-31T22:47:13,178 [bcfile.Compression] INFO : Trying to load codec class org.apache.hadoop.io.compress.ZStandardCodec for io.compression.codec.zstd.class
+2021-03-31T22:47:13,194 [zlib.ZlibFactory] INFO : Successfully loaded & initialized native-zlib library
+2021-03-31T22:47:13,195 [compress.CodecPool] INFO : Got brand-new compressor [.deflate]
 ```
 
 ## Start up services one by one
@@ -222,8 +177,45 @@ Start accumulo shell with the new accumulo-client.properties. Note that 'ashell'
 ```
 You should see the login prompt is your 
 Run the basic operations to verify kerberos-based authentication and permission. Below, I captured the screenshot and blacked out the full domain name for security reason.  
+```
+[accumulo@example.onmicrosoft.com@accucluster3-0 ~]$ /opt/muchos/install/accumulo-2.1.0-SNAPSHOT/bin/accumulo shell --config-file ~/accumulo-client.properties
+OpenJDK 64-Bit Server VM warning: Option UseConcMarkSweepGC was deprecated in version 9.0 and will likely be removed in a future release.
 
-![Image](images/kerberos_testing.jpg)
+2021-03-31T22:54:58,429 [tracer.AsyncSpanReceiver] INFO : host from config: accucluster3-0
+2021-03-31T22:54:58,429 [tracer.AsyncSpanReceiver] INFO : starting span receiver with hostname accucluster3-0
+
+Shell - Apache Accumulo Interactive Shell
+-
+- version: 2.1.0-SNAPSHOT
+- instance name: muchos
+- instance id: 50706f09-c529-4433-8c6a-89a9d21795e1
+-
+- type 'help' for a list of available commands
+-
+
+accumulo@EXAMPLE.ONMICROSOFT.COM@muchos>
+accumulo@EXAMPLE.ONMICROSOFT.COM@muchos>
+accumulo@EXAMPLE.ONMICROSOFT.COM@muchos>
+accumulo@EXAMPLE.ONMICROSOFT.COM@muchos>
+accumulo@EXAMPLE.ONMICROSOFT.COM@muchos>
+accumulo@EXAMPLE.ONMICROSOFT.COM@muchos> users
+azureuser/accucluster3-1.example.onmicrosoft.com@EXAMPLE.ONMICROSOFT.COM
+azureuser/accucluster3-0.example.onmicrosoft.com@EXAMPLE.ONMICROSOFT.COM
+accumulo@EXAMPLE.ONMICROSOFT.COM
+accumulo@EXAMPLE.ONMICROSOFT.COM@muchos>
+accumulo@EXAMPLE.ONMICROSOFT.COM@muchos>
+accumulo@EXAMPLE.ONMICROSOFT.COM@muchos>
+accumulo@EXAMPLE.ONMICROSOFT.COM@muchos> createtable test
+accumulo@EXAMPLE.ONMICROSOFT.COM@muchos test>
+accumulo@EXAMPLE.ONMICROSOFT.COM@muchos test> insert a b c d
+accumulo@EXAMPLE.ONMICROSOFT.COM@muchos test> flush -w
+2021-03-31T22:55:42,000 [shell.Shell] INFO : Flush of table test  completed.
+accumulo@EXAMPLE.ONMICROSOFT.COM@muchos test>
+accumulo@EXAMPLE.ONMICROSOFT.COM@muchos test> droptable test
+droptable { test } (yes|no)? yes
+Table: [test] has been deleted.
+
+```
 
 Do the same testing with another normal user account in Azure AD. You should see the permission error. Fix the permission error with the following from accumulo admin shell.
 

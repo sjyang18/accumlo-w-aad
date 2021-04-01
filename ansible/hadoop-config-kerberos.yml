@@ -22,7 +22,7 @@
     - name: Update HDFS_ZKFC_OPTS with Kerberos setting
       blockinfile:
         path: '{{ hadoop_home }}/etc/hadoop/hadoop-env.sh'
-        state: absent
+        state: present
         insertafter: EOF
         marker: "# {mark} ANSIBLE MANAGED BLOCK for Kerberos"
         block: |
