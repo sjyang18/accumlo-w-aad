@@ -35,13 +35,14 @@
         src=conf/accumulo.jaas.j2
         dest='{{ accumulo_home }}/conf/accumulo.jaas'
 
-    - name: "'-Djava.security.krb5.conf=/etc/krb5.conf' to accumulo-env.sh"
+    - name: "update JAVA_OPTS with zookeeper sasl to accumulo-env.sh"
       blockinfile:
         path: '{{ accumulo_home }}/conf/accumulo-env.sh'
         marker: "# {mark} ANSIBLE MANAGED BLOCK for Kerberos"
         insertbefore: ^export JAVA_OPTS
         block: |
-          JAVA_OPTS=("${JAVA_OPTS[@]}" "-Djavax.security.auth.useSubjectCredsOnly=false" "-Djava.security.auth.login.config={{ accumulo_home }}/conf/accumulo_jaas.conf")
+          export CLIENT_JVMFLAGS="-Dzookeeper.sasl.client=true -Dzookeeper.sasl.client.username=azureuser -Djava.security.auth.login.config=/opt/muchos/install/accumulo-2.1.0-SNAPSHOT/conf/accumulo.jaas $CLIENT_JVMFLAGS"
+          JAVA_OPTS=("${JAVA_OPTS[@]}" $CLIENT_JVMFLAGS)
 
     - name: update accumulo.properties with Kerberos setting
       blockinfile:
