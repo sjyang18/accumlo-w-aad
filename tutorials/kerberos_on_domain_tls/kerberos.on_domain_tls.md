@@ -229,6 +229,49 @@ grant System.CREATE_TABLE -s -u seyan@EXAMPLE.ONMICROSOFT.COM
 
 And, this time, the normal user should be able to run basic operational tests without permission errors.
 
+## Multiple ACL for delegation_token_keys and Workaround
+I found that once accumulo-cluster stops and starts again, accumulo managers are crashing with the error throwing the message of multiple ACL entries for delegation_token_keys. The issue is filed as an issue (https://github.com/apache/accumulo/issues/1984). For now, the workaround is reset ACL to have one entry with digest:accumulo:*.
+
+First, get the accumulo instance id from hdfs, then get the Acl of the instance with `getAcl`. The format of path is /accumulo/${accumulo_id}.
+Note that you find the line with `'digest', 'accumulo:'`. 
+Then, reset Acl for /accumulo/${accumulo_id}/delegation_token_keys with the digested accumulo account and the cdrwa permission.
+
+```
+[azureuser@accucluster3-0 conf]$ hdfs dfs -ls /accumulo
+Found 4 items
+drwxr-xr-x   - azureuser supergroup          0 2021-04-01 23:54 /accumulo/instance_id
+drwxr-xr-x   - azureuser supergroup          0 2021-04-01 23:54 /accumulo/tables
+drwx------   - azureuser supergroup          0 2021-04-01 23:54 /accumulo/version
+drwx------   - azureuser supergroup          0 2021-04-02 00:04 /accumulo/wal
+[azureuser@accucluster3-0 conf]$ hdfs dfs -ls /accumulo/instance_id
+Found 1 items
+-rw-r--r--   2 azureuser supergroup          0 2021-04-01 23:54 /accumulo/instance_id/00a5058f-9813-422a-9144-1ae6bf510dca
+[azureuser@accucluster3-0 conf]$ zkCli.sh -server $(hostname -f):2191
+Connecting to accucluster3-0.example.onmicrosoft.com:2191
+Welcome to ZooKeeper!
+JLine support is enabled
+[zk: accucluster3-0.example.onmicrosoft.com:2191(CONNECTING) 0]
+WATCHER::
+
+WatchedEvent state:SyncConnected type:None path:null
+
+WATCHER::
+
+WatchedEvent state:SaslAuthenticated type:None path:null
+
+[zk: accucluster3-0.example.onmicrosoft.com:2191(CONNECTED) 0] getAcl /accumulo/00a5058f-9813-422a-9144-1ae6bf510dca
+'x509,'CN=accucluster3-0.example.onmicrosoft.com
+: cdrwa
+'sasl,'azureuser
+: cdrwa
+'digest,'accumulo:KBeh49allLP6OCuJmbGiQ7Q0guQ=
+: cdrwa
+'world,'anyone
+: r
+[zk: accucluster3-0.example.onmicrosoft.com:2191(CONNECTED) 1] setAcl /accumulo/00a5058f-9813-422a-9144-1ae6bf510dca/delegation_token_keys digest:accumulo:KBeh49allLP6OCuJmbGiQ7Q0guQ=:cdrwa
+
+```
+
 
 
 
