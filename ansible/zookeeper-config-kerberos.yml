@@ -28,8 +28,14 @@
         insertafter: EOF
         marker: "# {mark} ANSIBLE MANAGED BLOCK for Kerberos"
         block: |
-          export SERVER_JVMFLAGS="-Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-server.jaas ${SERVER_JVMFLAGS}"
-          export CLIENT_JVMFLAGS="-Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-client.jaas ${CLIENT_JVMFLAGS}"
+          export SERVER_JVMFLAGS="\
+            -Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-server.jaas \
+            ${SERVER_JVMFLAGS}"
+          export CLIENT_JVMFLAGS="\
+            -Dzookeeper.sasl.client=true \
+            -Dzookeeper.sasl.client.username={{ service_principal_login }} \
+            -Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-client.jaas \
+            ${CLIENT_JVMFLAGS}"
    
     - name: update conf/zoo.cfg with Kerberos setting
       blockinfile:
