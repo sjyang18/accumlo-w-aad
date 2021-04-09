@@ -32,7 +32,7 @@ domain_admin_username=XXX       # one of username who is Azure AAD domain
 In order to enable kerberos in Accumulo cluster with fluo-mucho, we need to first generate service principals and keytab files for those. If you have followed our previous tutorial and joined your cluster to Azure AAD domain services, customers may run the following command to generate users, the corresponding service principals, and keytab files.
 
 ```
-ansible-playbook -i hosts accumulo-w-aad/ansible/ldap_adduser.yml
+ansible-playbook -i hosts accumulo-w-aad/ansible/ldap_addspn.yml
 ```
 
 Otherwise, we expect customers to generate those service principals and corresponding keytab files with the following file name convention.
@@ -42,18 +42,22 @@ HTTP.{{ hostname }}.keytab
 {{ service_user_name }}.{{ hostname }}.keytab
 ```
 
-For example, 'ldap_adduser.yml' would generate the following keytab files for my cluster and fetch them to keytabs directory in bastion host.
+For example, 'ldap_addspn.yml' would generate the following keytab files for my cluster and fetch them to keytabs directory in bastion host.
 ```
 [azureuser@bastion ~]$ tree keytabs/
 keytabs/
-├── azureuser.accucluster3-0.keytab
-├── azureuser.accucluster3-1.keytab
-├── azureuser.accucluster3-2.keytab
-├── azureuser.accucluster3-3.keytab
-├── azureuser.accucluster3-4.keytab
-├── azureuser.accucluster3-5.keytab
-├── azureuser.accucluster3-6.keytab
-├── azureuser.accucluster3-8.keytab
+├── accml.accucluster3-0.keytab
+├── accml.accucluster3-1.keytab
+├── accml.accucluster3-3.keytab
+├── accml.accucluster3-4.keytab
+├── accml.accucluster3-5.keytab
+├── accml.accucluster3-6.keytab
+├── accml.accucluster3-8.keytab
+├── dn.accucluster3-3.keytab
+├── dn.accucluster3-4.keytab
+├── dn.accucluster3-5.keytab
+├── dn.accucluster3-6.keytab
+├── dn.accucluster3-8.keytab
 ├── HTTP.accucluster3-0.keytab
 ├── HTTP.accucluster3-1.keytab
 ├── HTTP.accucluster3-2.keytab
@@ -61,7 +65,19 @@ keytabs/
 ├── HTTP.accucluster3-4.keytab
 ├── HTTP.accucluster3-5.keytab
 ├── HTTP.accucluster3-6.keytab
-└── HTTP.accucluster3-8.keytab
+├── HTTP.accucluster3-8.keytab
+├── jhs.accucluster3-0.keytab
+├── jhs.accucluster3-1.keytab
+├── jhs.accucluster3-2.keytab
+├── nm.accucluster3-0.keytab
+├── nm.accucluster3-1.keytab
+├── nn.accucluster3-0.keytab
+├── nn.accucluster3-1.keytab
+├── rm.accucluster3-0.keytab
+├── rm.accucluster3-1.keytab
+├── zookeeper.accucluster3-0.keytab
+├── zookeeper.accucluster3-1.keytab
+└── zookeeper.accucluster3-2.keytab
 ```
 
 By chance, if you see the following error, you might have to update the password of AAD DC Administrator user 'https://myaccount.microsoft.com/'. Log into the site with the user you choose for AAD DC Administrator user and update its password.
@@ -87,10 +103,10 @@ If needed, you may override variable 'service_principal_login' and 'keytabs_pick
 As mentioned in Accumulo user document (https://accumulo.apache.org/docs/2.x/security/kerberos#administrative-user), the Accumulo still has a single user 'root' with administrative permission. This has to change to authenticate with kerberos with 'accumulo init --reset-security' command. **Make sure that you stop accumulo services before resetting the administrative user.** Let's say you have accumulo_admin@EXAMPLE.COM as your admin. Before resetting admin, login in with your service principal user name (i.e. azureuser in my case) to Accumulo master/manager nodes, run kinit with your service principal and its keytab file. For example in my cluster,
 
 ```
-kinit -r9d -kt /opt/muchos/install/keytabs/azureuser.keytab azureuser/accucluster3-1.example.com@EXAMPLE.COM
+kinit -r9d -kt /opt/muchos/install/keytabs/accml.keytab accml/$(hostname -f)@EXAMPLE.COM
 ```
 
-If you have multiple master/manager nodes, run kinit on other master/manager nodes too. Even though you have configured this service principal and its keytab file in accumulo.properties, my observation is that 'Accumulo init' process is picking up the kerberos authentication from the current login's key cache, and this key cache should be set on all master/manager during 'Accumulo init' process. Otherwise, you will see the 'Authentication' related error. 
+If you have multiple master/manager nodes, run kinit on other master/manager nodes too. Even though you have configured this service principal and its keytab file in accumulo.properties, my observation is that accmulo manager process is picking up the kerberos authentication from the current login's key cache, and this key cache should be set on all master/manager during 'accumulo-cluster start' process. Otherwise, you will see the 'Authentication' related error. 
 
 Then, run 'accumulo init --reset-security' and give your admin user account and its password during the process.
 ```
@@ -144,6 +160,49 @@ start-dfs.sh
 
 # start accumulo services
 accumulo-cluster start
+
+```
+
+## Multiple ACL for delegation_token_keys and Workaround
+I found that once accumulo-cluster stops and starts again, accumulo managers are crashing with the error throwing the message of multiple ACL entries for delegation_token_keys. The issue is filed as an issue (https://github.com/apache/accumulo/issues/1984). For now, the workaround is reset ACL to have one entry with digest:accumulo:*.
+
+First, get the accumulo instance id from hdfs, then get the Acl of the instance with `getAcl`. The format of path is /accumulo/${accumulo_id}.
+Note that you find the line with `'digest', 'accumulo:'`. 
+Then, reset Acl for /accumulo/${accumulo_id}/delegation_token_keys with the digested accumulo account and the cdrwa permission.
+
+```
+[azureuser@accucluster3-0 conf]$ hdfs dfs -ls /accumulo
+Found 4 items
+drwxr-xr-x   - azureuser supergroup          0 2021-04-01 23:54 /accumulo/instance_id
+drwxr-xr-x   - azureuser supergroup          0 2021-04-01 23:54 /accumulo/tables
+drwx------   - azureuser supergroup          0 2021-04-01 23:54 /accumulo/version
+drwx------   - azureuser supergroup          0 2021-04-02 00:04 /accumulo/wal
+[azureuser@accucluster3-0 conf]$ hdfs dfs -ls /accumulo/instance_id
+Found 1 items
+-rw-r--r--   2 azureuser supergroup          0 2021-04-01 23:54 /accumulo/instance_id/00a5058f-9813-422a-9144-1ae6bf510dca
+[azureuser@accucluster3-0 conf]$ zkCli.sh -server $(hostname -f):2191
+Connecting to accucluster3-0.example.onmicrosoft.com:2191
+Welcome to ZooKeeper!
+JLine support is enabled
+[zk: accucluster3-0.example.onmicrosoft.com:2191(CONNECTING) 0]
+WATCHER::
+
+WatchedEvent state:SyncConnected type:None path:null
+
+WATCHER::
+
+WatchedEvent state:SaslAuthenticated type:None path:null
+
+[zk: accucluster3-0.example.onmicrosoft.com:2191(CONNECTED) 0] getAcl /accumulo/00a5058f-9813-422a-9144-1ae6bf510dca
+'x509,'CN=accucluster3-0.example.onmicrosoft.com
+: cdrwa
+'sasl,'azureuser
+: cdrwa
+'digest,'accumulo:KBeh49allLP6OCuJmbGiQ7Q0guQ=
+: cdrwa
+'world,'anyone
+: r
+[zk: accucluster3-0.example.onmicrosoft.com:2191(CONNECTED) 1] setAcl /accumulo/00a5058f-9813-422a-9144-1ae6bf510dca/delegation_token_keys digest:accumulo:KBeh49allLP6OCuJmbGiQ7Q0guQ=:cdrwa
 
 ```
 
@@ -229,48 +288,6 @@ grant System.CREATE_TABLE -s -u seyan@EXAMPLE.ONMICROSOFT.COM
 
 And, this time, the normal user should be able to run basic operational tests without permission errors.
 
-## Multiple ACL for delegation_token_keys and Workaround
-I found that once accumulo-cluster stops and starts again, accumulo managers are crashing with the error throwing the message of multiple ACL entries for delegation_token_keys. The issue is filed as an issue (https://github.com/apache/accumulo/issues/1984). For now, the workaround is reset ACL to have one entry with digest:accumulo:*.
-
-First, get the accumulo instance id from hdfs, then get the Acl of the instance with `getAcl`. The format of path is /accumulo/${accumulo_id}.
-Note that you find the line with `'digest', 'accumulo:'`. 
-Then, reset Acl for /accumulo/${accumulo_id}/delegation_token_keys with the digested accumulo account and the cdrwa permission.
-
-```
-[azureuser@accucluster3-0 conf]$ hdfs dfs -ls /accumulo
-Found 4 items
-drwxr-xr-x   - azureuser supergroup          0 2021-04-01 23:54 /accumulo/instance_id
-drwxr-xr-x   - azureuser supergroup          0 2021-04-01 23:54 /accumulo/tables
-drwx------   - azureuser supergroup          0 2021-04-01 23:54 /accumulo/version
-drwx------   - azureuser supergroup          0 2021-04-02 00:04 /accumulo/wal
-[azureuser@accucluster3-0 conf]$ hdfs dfs -ls /accumulo/instance_id
-Found 1 items
--rw-r--r--   2 azureuser supergroup          0 2021-04-01 23:54 /accumulo/instance_id/00a5058f-9813-422a-9144-1ae6bf510dca
-[azureuser@accucluster3-0 conf]$ zkCli.sh -server $(hostname -f):2191
-Connecting to accucluster3-0.example.onmicrosoft.com:2191
-Welcome to ZooKeeper!
-JLine support is enabled
-[zk: accucluster3-0.example.onmicrosoft.com:2191(CONNECTING) 0]
-WATCHER::
-
-WatchedEvent state:SyncConnected type:None path:null
-
-WATCHER::
-
-WatchedEvent state:SaslAuthenticated type:None path:null
-
-[zk: accucluster3-0.example.onmicrosoft.com:2191(CONNECTED) 0] getAcl /accumulo/00a5058f-9813-422a-9144-1ae6bf510dca
-'x509,'CN=accucluster3-0.example.onmicrosoft.com
-: cdrwa
-'sasl,'azureuser
-: cdrwa
-'digest,'accumulo:KBeh49allLP6OCuJmbGiQ7Q0guQ=
-: cdrwa
-'world,'anyone
-: r
-[zk: accucluster3-0.example.onmicrosoft.com:2191(CONNECTED) 1] setAcl /accumulo/00a5058f-9813-422a-9144-1ae6bf510dca/delegation_token_keys digest:accumulo:KBeh49allLP6OCuJmbGiQ7Q0guQ=:cdrwa
-
-```
 
 
 

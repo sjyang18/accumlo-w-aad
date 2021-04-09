@@ -1,0 +1,27 @@
+---
+- name: Set variables
+  set_fact:
+    keytab_file_path: "{{ keytabs_deployment_dir }}/{{ ldap_spn }}.keytab"
+- name: pick up & deploy the host specific keytab file
+  copy:
+    src:  "{{ keytabs_pickup_dir }}/{{ ldap_spn }}.{{ inventory_hostname }}.keytab"
+    dest: "{{ keytab_file_path }}"
+
+- name: Make sure to have ldap_spn_owner exist
+  user:
+    name: "{{ ldap_spn_owner }}"
+    group: "{{ supergroup }}"
+  become: True
+- name: change owner of keytab
+  file:
+    path: '{{ keytab_file_path }}'
+    owner: '{{ ldap_spn_owner }}'
+    group: '{{ supergroup }}'
+    mode: u+rw,g+rw,o-rwx
+  become: True
+- name: Verify the deployed keytab with fqdn spn name 
+  shell: |
+    /usr/bin/kdestroy
+    /usr/bin/kinit -V -kt {{ keytab_file_path }} {{ ldap_spn_w_fqdn }}
+    /usr/bin/kdestroy
+  when: not ( skip_keytab_verification | default(False) | bool)

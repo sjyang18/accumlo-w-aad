@@ -1,16 +1,122 @@
 ---
+- name: deploy namenode spn and keytab
+  hosts: namenode
+  vars:
+    hadoop_spn_owner_mapping:
+      nn: hdfs
+  become: no
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: set variables
+      set_fact:
+        ldap_spn: "{{ item.key }}"
+        ldap_spn_owner: "{{ item.value }}"
+        ldap_spn_w_fqdn: "{{ item.key }}/{{ ansible_fqdn }}@{{ realm_name }}"
+      with_dict: "{{ hadoop_spn_owner_mapping }}"
+    - import_tasks: tasks/deploy_keytab.yml
+
+- name: deploy datanode spn and keytab
+  hosts: workers
+  vars:
+    hadoop_spn_owner_mapping:
+      dn: hdfs
+  become: no
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: set variables
+      set_fact:
+        ldap_spn: "{{ item.key }}"
+        ldap_spn_owner: "{{ item.value }}"
+        ldap_spn_w_fqdn: "{{ item.key }}/{{ ansible_fqdn }}@{{ realm_name }}"
+      with_dict: "{{ hadoop_spn_owner_mapping }}"
+    - import_tasks: tasks/deploy_keytab.yml
+    
+- name: deploy rm spn and keytab
+  hosts: resourcemanager
+  vars:
+    hadoop_spn_owner_mapping:
+      rm: yarn
+  become: no
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: set variables
+      set_fact:
+        ldap_spn: "{{ item.key }}"
+        ldap_spn_owner: "{{ item.value }}"
+        ldap_spn_w_fqdn: "{{ item.key }}/{{ ansible_fqdn }}@{{ realm_name }}"
+      with_dict: "{{ hadoop_spn_owner_mapping }}"
+    - import_tasks: tasks/deploy_keytab.yml
+
+- name: deploy nm spn and keytab
+  hosts: resourcemanager
+  vars:
+    hadoop_spn_owner_mapping:
+      nm: yarn
+  become: no
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: set variables
+      set_fact:
+        ldap_spn: "{{ item.key }}"
+        ldap_spn_owner: "{{ item.value }}"
+        ldap_spn_w_fqdn: "{{ item.key }}/{{ ansible_fqdn }}@{{ realm_name }}"
+      with_dict: "{{ hadoop_spn_owner_mapping }}"
+    - import_tasks: tasks/deploy_keytab.yml
+
+- name: deploy journalnode spn and keytab
+  hosts: journalnode
+  vars:
+    hadoop_spn_owner_mapping:
+      jhs: mapred
+  become: no
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: set variables
+      set_fact:
+        ldap_spn: "{{ item.key }}"
+        ldap_spn_owner: "{{ item.value }}"
+        ldap_spn_w_fqdn: "{{ item.key }}/{{ ansible_fqdn }}@{{ realm_name }}"
+      with_dict: "{{ hadoop_spn_owner_mapping }}"
+    - import_tasks: tasks/deploy_keytab.yml
+
+- name: deploy HTTP spn and keytab
+  hosts: hadoop
+  vars:
+    hadoop_spn_owner_mapping:
+      HTTP: hdfs
+  become: no
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: set variables
+      set_fact:
+        ldap_spn: "{{ item.key }}"
+        ldap_spn_owner: "{{ item.value }}"
+        ldap_spn_w_fqdn: "{{ item.key }}/{{ ansible_fqdn }}@{{ realm_name }}"
+      with_dict: "{{ hadoop_spn_owner_mapping }}"
+    - import_tasks: tasks/deploy_keytab.yml
+
 - name: changes the existing hadoop configs with kerberos
   hosts: hadoop
   gather_facts: yes
   become: no
   tasks:
     - import_tasks: tasks/common_vars.yml
-
-    - name: Set keberos keytab file and service principal name
+    - name: Set keberos keytab files and service principal names
       set_fact:
-        hadoop_service_principal_keytabfile: "{{ keytabs_deployment_dir }}/{{ service_principal_login }}.keytab"
-        hadoop_service_principal: "{{ service_principal_login }}/_HOST@{{ realm_name }}"
-        hadoop_service_principal_w_fqdn: "{{ service_principal_login }}/{{ ansible_fqdn }}@{{ realm_name }}"
+        nn_service_principal_keytabfile: "{{ keytabs_deployment_dir }}/nn.keytab"
+        nn_service_principal: "nn/_HOST@{{ realm_name }}"
+        zkfc_service_principal_w_fqdn: "zookeeper/{{ ansible_fqdn }}@{{ realm_name }}"
+        zkfc_service_principal_keytabfile: "{{ keytabs_deployment_dir }}/zookeeper.keytab"
+        dn_service_principal_keytabfile: "{{ keytabs_deployment_dir }}/dn.keytab"
+        dn_service_principal: "dn/_HOST@{{ realm_name }}"
+        rm_service_principal_keytabfile: "{{ keytabs_deployment_dir }}/rm.keytab"
+        rm_service_principal_w_fqdn: "rm/{{ ansible_fqdn }}@{{ realm_name }}"
+        rm_service_principal: "rm/_HOST@{{ realm_name }}"
+        nm_service_principal_keytabfile: "{{ keytabs_deployment_dir }}/nm.keytab"
+        nm_service_principal: "nm/_HOST@{{ realm_name }}"
+        nm_service_principal_w_fqdn: "nm/{{ ansible_fqdn }}@{{ realm_name }}"
+        jhs_service_principal_keytabfile: "{{ keytabs_deployment_dir }}/jhs.keytab"
+        jhs_service_principal: "jhs/_HOST@{{ realm_name }}"
         http_service_principal_keytabfile: "{{ keytabs_deployment_dir }}/HTTP.keytab"
         http_service_principal: "HTTP/_HOST@{{ realm_name }}"
 
@@ -26,7 +132,13 @@
         insertafter: EOF
         marker: "# {mark} ANSIBLE MANAGED BLOCK for Kerberos"
         block: |
-          export HDFS_ZKFC_OPTS="-Djava.security.auth.login.config={{ hadoop_home }}/etc/hadoop/hdfs_zkfc.jaas -Dzookeeper.sasl.client=true -Dzookeeper.sasl.client.username={{ service_principal_login }} -Dzookeeper.sasl.clientconfig=Client ${HDFS_ZKFC_OPTS}"
+          export CLIENT_JVMFLAGS
+          export HDFS_ZKFC_OPTS="\
+            -Djavax.security.auth.useSubjectCredsOnly=false \
+            -Djava.security.auth.login.config={{ hadoop_home }}/etc/hadoop/hdfs_zkfc.jaas \
+            -Dzookeeper.sasl.client=true \
+            -Dzookeeper.sasl.client.username=zookeeper \
+            -Dzookeeper.sasl.clientconfig=Client ${HDFS_ZKFC_OPTS}"
 
     - name: update etc/hadoop/core-site.xml with Kerberos setting
       blockinfile:
@@ -95,12 +207,12 @@
 
           <property>
                 <name>dfs.namenode.kerberos.principal</name>
-                <value>{{ hadoop_service_principal }}</value>
+                <value>{{ nn_service_principal }}</value>
           </property>
 
           <property>
                 <name>dfs.namenode.keytab.file</name>
-                <value>{{ hadoop_service_principal_keytabfile }}</value>
+                <value>{{ nn_service_principal_keytabfile }}</value>
           </property>
 
           <property>
@@ -131,12 +243,12 @@
 
           <property>
                 <name>dfs.journalnode.kerberos.principal</name>
-                <value>{{ hadoop_service_principal }}</value>
+                <value>{{ jhs_service_principal }}</value>
           </property>
 
           <property>
                 <name>dfs.journalnode.keytab.file</name>
-                <value>{{ hadoop_service_principal_keytabfile }}</value>
+                <value>{{ jhs_service_principal_keytabfile }}</value>
           </property>
 
           <property>
@@ -170,12 +282,12 @@
 
           <property>
                 <name>dfs.datanode.kerberos.principal</name>
-                <value>{{ hadoop_service_principal }}</value>
+                <value>{{ dn_service_principal }}</value>
           </property>
 
           <property>
                 <name>dfs.datanode.keytab.file</name>
-                <value>{{ hadoop_service_principal_keytabfile }}</value>
+                <value>{{ dn_service_principal_keytabfile }}</value>
           </property>
 
           <property>
@@ -203,4 +315,87 @@
           <property>
                 <name>dfs.web.authentication.kerberos.keytab</name>
                 <value>{{ http_service_principal_keytabfile }}</value>
+          </property>
+
+          <property>
+                <name>dfs.permissions.superusergroup</name>
+                <value>{{ supergroup }}</value>
+          </property>
+
+    - name: Generate yarn_jaas.conf
+      template:
+        src=conf/yarn_jaas.conf.j2
+        dest='{{ hadoop_home }}/etc/hadoop/yarn_jaas.conf'
+
+    - name: Generate yarn_nm_jaas.conf
+      template:
+        src=conf/yarn_nm_jaas.conf.j2
+        dest='{{ hadoop_home }}/etc/hadoop/yarn_nm_jaas.conf'
+
+    - name: Update YARN_RESOURCEMANAGER_OPTS with Kerberos setting
+      blockinfile:
+        path: '{{ hadoop_home }}/etc/hadoop/yarn-env.sh'
+        state: present
+        insertafter: EOF
+        marker: "# {mark} ANSIBLE MANAGED BLOCK for Kerberos"
+        block: |
+          export YARN_RESOURCEMANAGER_OPTS="\
+          -Djavax.security.auth.useSubjectCredsOnly=false \
+          -Djava.security.auth.login.config={{ hadoop_home }}/etc/hadoop/yarn_jaas.conf \
+          -Dzookeeper.sasl.client=true \
+          -Dzookeeper.sasl.client.username=zookeeper \
+          -Dzookeeper.sasl.clientconfig=Client \
+          ${YARN_RESOURCEMANAGER_OPTS} ${CLIENT_JVMFLAGS}"
+          export YARN_NODEMANAGER_OPTS="\
+           -Djava.security.auth.login.config={{ hadoop_home }}/etc/hadoop/yarn_nm_jaas.conf \
+           -Dzookeeper.sasl.client=true -Dzookeeper.sasl.client.username=zookeeper \
+           -Dzookeeper.sasl.clientconfig=Client ${YARN_NODEMANAGER_OPTS} ${CLIENT_JVMFLAGS}"
+
+    - name: update etc/hadoop/yarn-site.xml with Kerberos setting
+      blockinfile:
+        path: '{{ hadoop_home }}/etc/hadoop/yarn-site.xml'
+        insertbefore: '\<\/configuration\>$'
+        marker: "<!-- {mark} ANSIBLE MANAGED BLOCK for Kerberos -->"
+        block: |
+          <!-- Resource Manager -->
+          <property>
+            <name>yarn.resourcemanager.principal</name>
+            <value>{{ rm_service_principal }}</value>
+          </property>
+          <property>
+            <name>yarn.resourcemanager.keytab</name>
+            <value>{{ rm_service_principal_keytabfile }}</value>
+          </property>
+          <!-- NodeManager -->
+          <property>
+            <name>yarn.nodemanager.principal</name>
+            <value>{{ nm_service_principal }}</value>
+          </property>
+          <property>
+            <name>yarn.nodemanager.keytab</name>
+            <value>{{ nm_service_principal_keytabfile }}</value>
+          </property>
+          <property>
+            <name>yarn.nodemanager.container-executor.class</name>
+            <value>org.apache.hadoop.yarn.server.nodemanager.LinuxContainerExecutor</value>
+          </property>
+          <property>
+            <name>yarn.nodemanager.linux-container-executor.group</name>
+            <value>{{ default_service_principal_login }}</value>
+          </property>
+
+    - name: update etc/hadoop/mapred-site.xml with Kerberos setting
+      blockinfile:
+        path: '{{ hadoop_home }}/etc/hadoop/mapred-site.xml'
+        insertbefore: '\<\/configuration\>$'
+        marker: "<!-- {mark} ANSIBLE MANAGED BLOCK for Kerberos -->"
+        block: |
+          <!-- Job History Server -->
+          <property>
+            <name>mapreduce.jobhistory.keytab</name>
+            <value>{{ jhs_service_principal_keytabfile }}</value>
+          </property>
+          <property>
+            <name>mapreduce.jobhistory.principal</name>
+            <value>{{ jhs_service_principal }}</value>
           </property>

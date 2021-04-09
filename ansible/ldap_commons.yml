@@ -1,0 +1,21 @@
+---
+- name: Have a directory to fetch keytab files
+  hosts: localhost
+  vars_prompt:
+    - name: "bind_password"
+      prompt: "Password for LADP binddn"
+  tasks:
+    - name: Have a directory to fetch keytab files
+      file:
+        state: "{{ item }}"
+        path: "{{ ansible_user_dir }}/keytabs"
+      with_items:
+        - directory
+    - name: add ldap binddn password to vault host
+      add_host:
+       name: "ldap_vault"
+       ldap_admin_pass: "{{ bind_password }}"
+
+
+
+

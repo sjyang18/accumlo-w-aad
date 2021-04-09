@@ -4,7 +4,17 @@ useKeyTab=true
 storeKey=true
 renewTGT=false
 doNotPrompt=true
-debug=true
+useTicketCache=false
+keyTab="{{ accumulo_service_principal_keytabfile }}"
+principal="{{ accumulo_service_principal_w_fqdn }}";
+};
+
+com.sun.security.jgss.krb5.initiate {
+com.sun.security.auth.module.Krb5LoginModule required
+useKeyTab=true
+storeKey=true
+renewTGT=false
+doNotPrompt=true
 useTicketCache=false
 keyTab="{{ accumulo_service_principal_keytabfile }}"
 principal="{{ accumulo_service_principal_w_fqdn }}";

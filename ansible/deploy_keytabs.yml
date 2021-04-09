@@ -1,4 +1,4 @@
-- name: Deploy Keytab files
+- name: Deploy Keytab files for hadoop
   hosts: hadoop
   become: yes
   tasks:
@@ -23,11 +23,7 @@
       file:
         path: '{{ keytabs_deployment_dir }}'
         owner: '{{ service_principal_login }}'
-        group: root
+        group: '{{ service_principal_login }}'
         mode: u+rw,g+rw,o-rwx
         recurse: yes
-
-
-
-
 

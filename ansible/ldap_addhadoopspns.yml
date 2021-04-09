@@ -1,0 +1,119 @@
+- name: add namenode user and its spn to AAD domain
+  hosts: namenode
+  vars:
+    hadoop_spn_owner_mapping:
+      nn: hdfs
+  become: no
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: set variables
+      set_fact:
+        bind_password: "{{ hostvars['ldap_vault']['ldap_admin_pass'] }}"
+        user_cn: "{{ item.key }}/{{ ansible_fqdn }}"
+        ldap_spn: "{{ item.key }}"
+        ldap_spn_owner: "{{ item.value }}"
+        ldap_spn_w_fqdn: "{{ item.key }}/{{ ansible_fqdn }}@{{ realm_name }}"
+        user_ldif_filename: "add_{{ item.key }}_user.ldif"
+      with_dict: "{{ hadoop_spn_owner_mapping }}"
+    - import_tasks: tasks/add_ldap_user.yml
+    - import_tasks: tasks/deploy_keytab.yml
+
+- name: add datanode user and its spn to AAD domain
+  hosts: workers
+  vars:
+    hadoop_spn_owner_mapping:
+      dn: hdfs
+  become: no
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: set variables
+      set_fact:
+        bind_password: "{{ hostvars['ldap_vault']['ldap_admin_pass'] }}"
+        user_cn: "{{ item.key }}/{{ ansible_fqdn }}"
+        ldap_spn: "{{ item.key }}"
+        ldap_spn_owner: "{{ item.value }}"
+        ldap_spn_w_fqdn: "{{ item.key }}/{{ ansible_fqdn }}@{{ realm_name }}"
+        user_ldif_filename: "add_{{ item.key }}_user.ldif"
+      with_dict: "{{ hadoop_spn_owner_mapping }}"
+    - import_tasks: tasks/add_ldap_user.yml
+    - import_tasks: tasks/deploy_keytab.yml
+    
+- name: add rm user and its spn to AAD domain
+  hosts: resourcemanager
+  vars:
+    hadoop_spn_owner_mapping:
+      rm: yarn
+  become: no
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: set variables
+      set_fact:
+        bind_password: "{{ hostvars['ldap_vault']['ldap_admin_pass'] }}"
+        user_cn: "{{ item.key }}/{{ ansible_fqdn }}"
+        ldap_spn: "{{ item.key }}"
+        ldap_spn_owner: "{{ item.value }}"
+        ldap_spn_w_fqdn: "{{ item.key }}/{{ ansible_fqdn }}@{{ realm_name }}"
+        user_ldif_filename: "add_{{ item.key }}_user.ldif"
+      with_dict: "{{ hadoop_spn_owner_mapping }}"
+    - import_tasks: tasks/add_ldap_user.yml
+    - import_tasks: tasks/deploy_keytab.yml
+
+- name: add nm user and its spn to AAD domain
+  hosts: resourcemanager
+  vars:
+    hadoop_spn_owner_mapping:
+      nm: yarn
+  become: no
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: set variables
+      set_fact:
+        bind_password: "{{ hostvars['ldap_vault']['ldap_admin_pass'] }}"
+        user_cn: "{{ item.key }}/{{ ansible_fqdn }}"
+        ldap_spn: "{{ item.key }}"
+        ldap_spn_owner: "{{ item.value }}"
+        ldap_spn_w_fqdn: "{{ item.key }}/{{ ansible_fqdn }}@{{ realm_name }}"
+        user_ldif_filename: "add_{{ item.key }}_user.ldif"
+      with_dict: "{{ hadoop_spn_owner_mapping }}"
+    - import_tasks: tasks/add_ldap_user.yml
+    - import_tasks: tasks/deploy_keytab.yml
+
+- name: add jhs user and its spn to AAD domain
+  hosts: journalnode
+  vars:
+    hadoop_spn_owner_mapping:
+      jhs: mapred
+  become: no
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: set variables
+      set_fact:
+        bind_password: "{{ hostvars['ldap_vault']['ldap_admin_pass'] }}"
+        user_cn: "{{ item.key }}/{{ ansible_fqdn }}"
+        ldap_spn: "{{ item.key }}"
+        ldap_spn_owner: "{{ item.value }}"
+        ldap_spn_w_fqdn: "{{ item.key }}/{{ ansible_fqdn }}@{{ realm_name }}"
+        user_ldif_filename: "add_{{ item.key }}_user.ldif"
+      with_dict: "{{ hadoop_spn_owner_mapping }}"
+    - import_tasks: tasks/add_ldap_user.yml
+    - import_tasks: tasks/deploy_keytab.yml
+
+- name: add HTTP user and its spn to AAD domain
+  hosts: hadoop
+  vars:
+    hadoop_spn_owner_mapping:
+      HTTP: hdfs
+  become: no
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: set variables
+      set_fact:
+        bind_password: "{{ hostvars['ldap_vault']['ldap_admin_pass'] }}"
+        user_cn: "{{ item.key }}/{{ ansible_fqdn }}"
+        ldap_spn: "{{ item.key }}"
+        ldap_spn_owner: "{{ item.value }}"
+        ldap_spn_w_fqdn: "{{ item.key }}/{{ ansible_fqdn }}@{{ realm_name }}"
+        user_ldif_filename: "add_{{ item.key }}_user.ldif"
+      with_dict: "{{ hadoop_spn_owner_mapping }}"
+    - import_tasks: tasks/add_ldap_user.yml
+    - import_tasks: tasks/deploy_keytab.yml

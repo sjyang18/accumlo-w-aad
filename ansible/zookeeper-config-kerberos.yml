@@ -1,4 +1,38 @@
 ---
+- name: Deploy Keytab file for zookeeper
+  hosts: zookeepers
+  become: yes
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: Setup Depolyment Directory
+      file:
+        state: "{{ item }}"
+        path: "{{ keytabs_deployment_dir }}"
+      with_items:
+        - directory
+
+    - name: Set zookeeper_service_principal_login
+      set_fact:
+        zookeeper_service_principal_login: "{{ zookeeper_service_principal_login | default('zookeeper') }}"
+
+    - name: Make sure to have zookeeper_service_principal_login
+      user:
+        name: "{{ zookeeper_service_principal_login }}"
+        group: "{{ service_principal_login }}"
+
+    - name: pick up & deploy the host specific keytab file of service_principal_login and HTTP
+      copy:
+        src:  "{{ keytabs_pickup_dir }}/{{ item }}.{{ inventory_hostname }}.keytab"
+        dest: "{{ keytabs_deployment_dir }}/{{ item }}.keytab"
+      with_items:
+        - "{{ zookeeper_service_principal_login }}"
+
+    - name: change owner of keytabs_deployment_dir
+      file:
+        path: '{{ keytabs_deployment_dir }}/{{ zookeeper_service_principal_login }}.keytab'
+        owner: '{{ zookeeper_service_principal_login }}'
+        group: '{{ service_principal_login }}'
+        mode: u+rw,g+rw,o-rwx
 
 - name: changes the existing zookeeper configs with kerberos
   hosts: zookeepers
@@ -7,10 +41,21 @@
   tasks:
     - import_tasks: tasks/common_vars.yml
 
+    - name: Set zookeeper_service_principal_login
+      set_fact:
+        zookeeper_service_principal_login: "{{ zookeeper_service_principal_login | default('zookeeper') }}"
+
     - name: Set keberos keytab file and service principal name
       set_fact: 
-        zookeeper_service_principal_keytabfile: "{{ keytabs_deployment_dir }}/{{ service_principal_login }}.keytab"
-        zookeeper_service_principal: "{{ service_principal_login }}/{{ ansible_fqdn }}@{{ realm_name }}"
+        zookeeper_service_principal_keytabfile: "{{ keytabs_deployment_dir }}/{{ zookeeper_service_principal_login }}.keytab"
+        zookeeper_service_principal: "{{ zookeeper_service_principal_login }}/{{ ansible_fqdn }}@{{ realm_name }}"
+
+    - name: pick up & deploy the host specific keytab file of service_principal_login and HTTP
+      copy:
+        src:  "{{ keytabs_pickup_dir }}/{{ item }}.{{ inventory_hostname }}.keytab"
+        dest: "{{ keytabs_deployment_dir }}/{{ item }}.keytab"
+      with_items:
+        - "{{ zookeeper_service_principal_login }}"
 
     - name: Generate zookeeper-server.jaas
       template:
@@ -33,7 +78,7 @@
             ${SERVER_JVMFLAGS}"
           export CLIENT_JVMFLAGS="\
             -Dzookeeper.sasl.client=true \
-            -Dzookeeper.sasl.client.username={{ service_principal_login }} \
+            -Dzookeeper.sasl.client.username={{ zookeeper_service_principal_login }} \
             -Djava.security.auth.login.config={{ zookeeper_home }}/conf/zookeeper-client.jaas \
             ${CLIENT_JVMFLAGS}"
    

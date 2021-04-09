@@ -1,0 +1,21 @@
+## This playbook adds zookeeper to AAD domain
+
+- name: add zookeeper user and its spn to AAD domain
+  hosts: zookeepers
+  vars:
+    hadoop_spn_owner_mapping:
+      zookeeper: zookeeper
+  become: no
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: set variables
+      set_fact:
+        bind_password: "{{ hostvars['ldap_vault']['ldap_admin_pass'] }}"
+        user_cn: "{{ item.key }}/{{ ansible_fqdn }}"
+        ldap_spn: "{{ item.key }}"
+        ldap_spn_owner: "{{ item.value }}"
+        ldap_spn_w_fqdn: "{{ item.key }}/{{ ansible_fqdn }}@{{ realm_name }}"
+        user_ldif_filename: "add_{{ item.key }}_user.ldif"
+      with_dict: "{{ hadoop_spn_owner_mapping }}"
+    - import_tasks: tasks/add_ldap_user.yml
+    - import_tasks: tasks/deploy_keytab.yml

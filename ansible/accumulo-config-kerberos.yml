@@ -1,18 +1,40 @@
 ---
 ## This playbook changes the existing accumulo configs with kerberos, based on environment set up by other playbooks in this repo
 
+- name: deploy namenode spn and keytab
+  hosts: accumulo
+  become: no
+  tasks:
+    - import_tasks: tasks/common_vars.yml
+    - name: set spn_owner_mapping
+      set_fact:
+        accml_spn_owner_mapping:
+          accml: accml
+    - name: set variables
+      set_fact:
+        ldap_spn: "{{ item.key }}"
+        ldap_spn_owner: "{{ item.value }}"
+        ldap_spn_w_fqdn: "{{ item.key }}/{{ ansible_fqdn }}@{{ realm_name }}"
+      with_dict: "{{ accml_spn_owner_mapping }}"
+    - import_tasks: tasks/deploy_keytab.yml
+
 - name: changes the existing accumulo configs with kerberos
   hosts: accumulo
   gather_facts: yes
   become: no
   tasks:
     - import_tasks: tasks/common_vars.yml
-
+    - name: set spn_owner_mapping
+      set_fact:
+        accml_spn_owner_mapping:
+          accml: accml
     - name: Set keberos keytab file and service principal name
       set_fact:
-        accumulo_service_principal_keytabfile: "{{ keytabs_deployment_dir }}/{{ service_principal_login }}.keytab"
-        accumulo_service_principal: "{{ service_principal_login }}/_HOST@{{ realm_name }}"
-        accumulo_service_principal_w_fqdn: "{{ service_principal_login }}/{{ ansible_fqdn }}@{{ realm_name }}"
+        accumulo_short_spn: "{{ item.key }}"
+        accumulo_service_principal_keytabfile: "{{ keytabs_deployment_dir }}/{{ item.key }}.keytab"
+        accumulo_service_principal: "{{ item.key }}/_HOST@{{ realm_name }}"
+        accumulo_service_principal_w_fqdn: "{{ item.key }}/{{ ansible_fqdn }}@{{ realm_name }}"
+      with_dict: "{{ accml_spn_owner_mapping }}"
 
     - name: check for spn keytab file exists
       stat: path={{ accumulo_service_principal_keytabfile }}
@@ -41,7 +63,11 @@
         marker: "# {mark} ANSIBLE MANAGED BLOCK for Kerberos"
         insertbefore: ^export JAVA_OPTS
         block: |
-          export CLIENT_JVMFLAGS="-Dzookeeper.sasl.client=true -Dzookeeper.sasl.client.username=azureuser -Djava.security.auth.login.config=/opt/muchos/install/accumulo-2.1.0-SNAPSHOT/conf/accumulo.jaas $CLIENT_JVMFLAGS"
+          export CLIENT_JVMFLAGS="\
+            -Djavax.security.auth.useSubjectCredsOnly=false \
+            -Dzookeeper.sasl.client=true -Dzookeeper.sasl.client.username=zookeeper \
+            -Djava.security.auth.login.config={{ accumulo_home }}/conf/accumulo.jaas \
+            -Dzookeeper.sasl.clientconfig=Client $CLIENT_JVMFLAGS"
           JAVA_OPTS=("${JAVA_OPTS[@]}" $CLIENT_JVMFLAGS)
 
     - name: update accumulo.properties with Kerberos setting
@@ -67,7 +93,13 @@
           general.delegation.token.update.interval=1d
           instance.rpc.sasl.allowed.user.impersonation=$PROXY_USER:*
           instance.rpc.sasl.allowed.host.impersonation=*
-   
+    
+    - name: Set instance.rpc.ssl.enabled to false for Manager
+      replace:
+        path: '{{ accumulo_home }}/conf/accumulo.properties'
+        regexp: '^instance.rpc.ssl.enabled=(.*)$'
+        replace: '#instance.rpc.ssl.enabled=\1'
+
     - name: update accumulo-client.properties with Kerberos setting (auth.type)
       lineinfile:
         path: '{{ accumulo_home }}/conf/accumulo-client.properties'
@@ -93,4 +125,4 @@
         block: |
           sasl.enabled=true
           sasl.qop=auth
-          sasl.kerberos.server.primary={{ service_principal_login }}
+          sasl.kerberos.server.primary={{ accumulo_short_spn }}

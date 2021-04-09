@@ -1,0 +1,37 @@
+---
+- name: Check add_*_user.ldif.bak created by the previous successful creation exists
+  stat:
+    path: '{{ ansible_user_dir }}/{{ user_ldif_filename }}.bak'
+  register: check_previous_execution
+
+- name: Generate user ldif file
+  template: 
+    src=ldapops/add_user.ldif.j2
+    dest="{{ ansible_user_dir }}/{{ user_ldif_filename }}"
+  when: not check_previous_execution.stat.exists
+
+- name: Run ldapadd only when ldif file is created in this playbook
+  command: ldapadd -x -w {{ bind_password }}  -D '{{ ldap_binddn }}' -f {{ ansible_user_dir }}/{{ user_ldif_filename }}
+  when: not check_previous_execution.stat.exists
+
+- name: Retreive spn keytab from Azure AAD domain service
+  expect:
+    command: ktutil
+    responses:
+      ktutil:
+        - "addent -password  -p {{ user_cn }}@{{ realm_name }} -k 1 -e RC4-HMAC"
+        - "wkt {{ ansible_user_dir }}/{{ ldap_spn }}.{{ ansible_hostname }}.keytab"
+        - "quit"
+      Password(.*): "{{ decoded_user_init_password }}"
+  when: not check_previous_execution.stat.exists
+
+- name: Fetch keytab files
+  fetch:
+    src:  "{{ ansible_user_dir }}/{{ ldap_spn }}.{{ ansible_hostname }}.keytab"
+    dest: "{{ ansible_user_dir }}/keytabs/"
+    flat: yes
+  when: not check_previous_execution.stat.exists
+
+- name: Backup *.ldif file
+  command : "mv {{ ansible_user_dir }}/{{ user_ldif_filename }} {{ ansible_user_dir }}/{{ user_ldif_filename }}.bak"
+  when: not check_previous_execution.stat.exists

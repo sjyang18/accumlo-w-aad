@@ -1,0 +1,10 @@
+---
+- import_playbook: ldap_commons.yml
+- import_playbook: ldap_addzookeeperspn.yml
+- import_playbook: ldap_addhadoopspns.yml
+- import_playbook: ldap_addaccumulospn.yml
+
+
+
+
+

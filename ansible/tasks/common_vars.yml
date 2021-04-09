@@ -3,8 +3,9 @@
   set_fact:
     default_keytabs_dir: "{{ lookup('env','HOME') }}/keytabs"
     default_service_principal_login: "{{ lookup('env','USER') }}"
-- name: Make sure to have service_principal_login
+- name: Make sure to havev common variables exist 
   set_fact:
     keytabs_pickup_dir: "{{ keytabs_pickup_dir | default(default_keytabs_dir) }}"
     service_principal_login: "{{ service_principal_login | default(default_service_principal_login) }}"
     keytabs_deployment_dir: "{{ install_dir }}/keytabs"
+    supergroup: "{{ supergroup | default(default_service_principal_login) }}"
