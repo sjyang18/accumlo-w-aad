@@ -2,6 +2,10 @@
 - name: Set variables
   set_fact:
     keytab_file_path: "{{ keytabs_deployment_dir }}/{{ ldap_spn }}.keytab"
+- name: Setup Depolyment Directory
+  file:
+    state: "directory"
+    path: "{{ keytabs_deployment_dir }}"
 - name: pick up & deploy the host specific keytab file
   copy:
     src:  "{{ keytabs_pickup_dir }}/{{ ldap_spn }}.{{ inventory_hostname }}.keytab"

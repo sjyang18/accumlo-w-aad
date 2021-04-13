@@ -94,11 +94,17 @@
           instance.rpc.sasl.allowed.user.impersonation=$PROXY_USER:*
           instance.rpc.sasl.allowed.host.impersonation=*
     
-    - name: Set instance.rpc.ssl.enabled to false for Manager
+    - name: Comment instance.rpc.ssl.enabled out for Manager
       replace:
         path: '{{ accumulo_home }}/conf/accumulo.properties'
         regexp: '^instance.rpc.ssl.enabled=(.*)$'
         replace: '#instance.rpc.ssl.enabled=\1'
+
+    - name: Comment ssl.enabled out for Client
+      replace:
+        path: '{{ accumulo_home }}/conf/accumulo-client.properties'
+        regexp: '^ssl.enabled=(.*)$'
+        replace: '#ssl.enabled=\1'
 
     - name: update accumulo-client.properties with Kerberos setting (auth.type)
       lineinfile:

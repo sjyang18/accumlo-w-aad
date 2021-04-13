@@ -1,5 +1,5 @@
 # Enabling Kerberos on domain-enabled and TLS-enabled Accumulo cluster
-Given you have enabled Domain and TLS in your Accumulo cluster (for example, in our previous tutorial, I employed Azure AAD Domain service for this purpose, and the tutorial is available in https://github.com/sjyang18/accumulo-w-aad/blob/main/tutorials/domain_plus_tls/domain.plus.tls.md), this time, we are going to add & modify kerberos-related configuration to the cluster. In general, this involves the two stages: 1) adding service principals and their keytab files to your selected domain/kerberos service, 2) adding & modifying hadoop and accumulo configuration for enabling kerberos with keytab files. Currently, we have multiple domain services & kerberos service products and different methodologies to setting up e& gnerating keytab files. To avoid the tightly-coupled solution, this tutorial will show one replacable first stage of generating keytab files from the same cluster environment we created in the previous tutorial, and demonstrate the second stage deployment with the expected keytabs file name patterns.  
+Given you have enabled Domain and TLS in your Accumulo cluster (for example, in our previous tutorial, I employed Azure AAD Domain service for this purpose, and the tutorial is available in https://github.com/sjyang18/accumulo-w-aad/blob/main/tutorials/domain_plus_tls/domain.plus.tls.md), this time, we are going to add & modify kerberos-related configuration to the cluster. In general, this involves the two stages: 1) adding service principals and their keytab files to your selected domain/kerberos service, 2) adding & modifying hadoop and accumulo configuration for enabling kerberos with keytab files. Currently, we have multiple domain services & kerberos service products and different methodologies to setting up e& generating keytab files. To avoid the tightly-coupled solution, this tutorial will show one replacable first stage of generating keytab files from the same cluster environment we created in the previous tutorial, and demonstrate the second stage deployment with the expected keytabs file name patterns.  
 
 ## Stop Accumulo services, HDFS, and zookeeper services
 Before we proceed, make sure to stop services from one of head nodes. Follow this order of shutting service.
@@ -32,7 +32,10 @@ domain_admin_username=XXX       # one of username who is Azure AAD domain
 In order to enable kerberos in Accumulo cluster with fluo-mucho, we need to first generate service principals and keytab files for those. If you have followed our previous tutorial and joined your cluster to Azure AAD domain services, customers may run the following command to generate users, the corresponding service principals, and keytab files.
 
 ```
-ansible-playbook -i hosts accumulo-w-aad/ansible/ldap_addspn.yml
+# to make sure to have config for ldap
+ansible-playbook -i ~/hosts accumulo-w-aad/ansible/ldap_config.yml
+# to add spn and generate keytab files
+ansible-playbook -i ~/hosts accumulo-w-aad/ansible/ldap_addspn.yml
 ```
 
 Otherwise, we expect customers to generate those service principals and corresponding keytab files with the following file name convention.
@@ -96,17 +99,29 @@ Deploy kerberos configuration to Hadoop and Accumulo with the following command.
 ansible-playbook -i ~/hosts accumulo-w-aad/ansible/enable-kerberos.yml
 ```
 
-If needed, you may override variable 'service_principal_login' and 'keytabs_pickup_dir' with -e switch. The default values for these variables are current user login in bastion host, and its ~/keytabs directory respectively.
+If needed, you may override variable 'keytabs_pickup_dir' with -e switch. The default values for these variables are current user login in bastion host, and its ~/keytabs directory respectively.
 
+## Start up zookeeper and hadoop services
+Start zookeepers and hadoop dfs services. This is needed in order to reset security for accumulo. For example, in my cluster environment, I run the following commands on a head node.
+
+```
+# start zookeepers
+ssh accucluster3-0 "/opt/muchos/install/apache-zookeeper-3.5.9-bin/bin/zkServer.sh start"
+ssh accucluster3-1 "/opt/muchos/install/apache-zookeeper-3.5.9-bin/bin/zkServer.sh start"
+ssh accucluster3-2 "/opt/muchos/install/apache-zookeeper-3.5.9-bin/bin/zkServer.sh start"
+
+# test zkCli.sh from the first head node after log into the node
+zkCli.sh -server $(hostname -f):2191
+# start hadoop dfs services
+start-dfs.sh
+```
 
 ## Administrative User
-As mentioned in Accumulo user document (https://accumulo.apache.org/docs/2.x/security/kerberos#administrative-user), the Accumulo still has a single user 'root' with administrative permission. This has to change to authenticate with kerberos with 'accumulo init --reset-security' command. **Make sure that you stop accumulo services before resetting the administrative user.** Let's say you have accumulo_admin@EXAMPLE.COM as your admin. Before resetting admin, login in with your service principal user name (i.e. azureuser in my case) to Accumulo master/manager nodes, run kinit with your service principal and its keytab file. For example in my cluster,
+As mentioned in Accumulo user document (https://accumulo.apache.org/docs/2.x/security/kerberos#administrative-user), the Accumulo still has a single user 'root' with administrative permission. This has to change to authenticate with kerberos with 'accumulo init --reset-security' command. **Make sure that you stop accumulo services before resetting the administrative user.** Let's say you have accumulo_admin@EXAMPLE.COM as your admin. If your Accumulo build does not have these two patches (https://github.com/apache/accumulo/pull/1727, https://github.com/apache/accumulo/pull/2014), you need to kinit with accml service principal. We recommend that you build accumulo from source to avoid authentication errors. Otherwise, you run kinit first. For example in my cluster,
 
 ```
 kinit -r9d -kt /opt/muchos/install/keytabs/accml.keytab accml/$(hostname -f)@EXAMPLE.COM
 ```
-
-If you have multiple master/manager nodes, run kinit on other master/manager nodes too. Even though you have configured this service principal and its keytab file in accumulo.properties, my observation is that accmulo manager process is picking up the kerberos authentication from the current login's key cache, and this key cache should be set on all master/manager during 'accumulo-cluster start' process. Otherwise, you will see the 'Authentication' related error. 
 
 Then, run 'accumulo init --reset-security' and give your admin user account and its password during the process.
 ```
@@ -146,21 +161,12 @@ Principal (user) to grant administrative privileges to : accumulo@EXAMPLE.ONMICR
 2021-03-31T22:47:13,195 [compress.CodecPool] INFO : Got brand-new compressor [.deflate]
 ```
 
-## Start up services one by one
-Start zookeepers, hadoop dfs services, and Accumulo. For example, in my cluster environment, I run the following commands on a head node.
+## Start Accumulo services
+Start Accumulo services with accumulo-cluster.sh. For example, in my cluster environment, I run the following commands on a head node.
 
 ```
-# start zookeepers
-zkServer.sh start
-ssh accucluster3-1 "/opt/muchos/install/apache-zookeeper-3.5.9-bin/bin/zkServer.sh start"
-ssh accucluster3-2 "/opt/muchos/install/apache-zookeeper-3.5.9-bin/bin/zkServer.sh start"
-
-# start hadoop dfs services
-start-dfs.sh
-
 # start accumulo services
 accumulo-cluster start
-
 ```
 
 ## Multiple ACL for delegation_token_keys and Workaround
@@ -193,7 +199,7 @@ WATCHER::
 
 WatchedEvent state:SaslAuthenticated type:None path:null
 
-[zk: accucluster3-0.example.onmicrosoft.com:2191(CONNECTED) 0] getAcl /accumulo/00a5058f-9813-422a-9144-1ae6bf510dca
+[zk: accucluster3-0.example.onmicrosoft.com:2191(CONNECTED) 0] getAcl /accumulo/00a5058f-9813-422a-9144-1ae6bf510dca/delegation_token_keys
 'x509,'CN=accucluster3-0.example.onmicrosoft.com
 : cdrwa
 'sasl,'azureuser
