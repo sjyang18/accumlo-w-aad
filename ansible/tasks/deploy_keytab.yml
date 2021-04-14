@@ -11,11 +11,18 @@
     src:  "{{ keytabs_pickup_dir }}/{{ ldap_spn }}.{{ inventory_hostname }}.keytab"
     dest: "{{ keytab_file_path }}"
 
+- name: Make sure to have ldap_spn under supergroup
+  user:
+    name: "{{ ldap_spn }}"
+    group: "{{ supergroup }}"
+  become: True
+
 - name: Make sure to have ldap_spn_owner exist
   user:
     name: "{{ ldap_spn_owner }}"
     group: "{{ supergroup }}"
   become: True
+
 - name: change owner of keytab
   file:
     path: '{{ keytab_file_path }}'
@@ -23,6 +30,7 @@
     group: '{{ supergroup }}'
     mode: u+rw,g+rw,o-rwx
   become: True
+
 - name: Verify the deployed keytab with fqdn spn name 
   shell: |
     /usr/bin/kdestroy
