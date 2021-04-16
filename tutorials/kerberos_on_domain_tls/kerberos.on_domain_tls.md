@@ -291,12 +291,54 @@ grant System.CREATE_TABLE -s -u seyan@EXAMPLE.ONMICROSOFT.COM
 # after testing, revoke 
 #revoke System.CREATE_TABLE -s -u seyan@EXAMPLE.ONMICROSOFT.COM
 ```
-
 And, this time, the normal user should be able to run basic operational tests without permission errors.
 
 
+## Test/Debug Web UI connectivities
+
+I used ssh dynamic port forwaring and foxyproxy to test out UI(s). Create a ssh tunneling with the following command
+
+```
+ssh -ND <your_forwarding_port:8157> <your_proxy_username>@<your_proxy_public_ip>
+```
+
+And, add the prorxy to your foxyproxy configuration and enable it.
+
+Then, test https connectivities with the following URL:
+
+```
+https://<head_node_fqdn>:50071/ # hadoop nn (configured in hdfs-site.xml)
+https://<head_node_fqdn>:8090/  # haddop rm (condfigured in yarn-site.xml)
+https://<head_node_fqdn>:9995/  # accumulo monitor
+```
+
+To troubeshoot the UI, you may take a look at the correspong log, for example, *montor.log.
+
+```
+tail -f /var/data/data2/logs/accumulo/monitor_accucluster3-0.your.domain.com.log
+
+...
+...
+2021-04-15T23:51:07,512 [server.AbstractConnector] INFO : Started ServerConnector@3416e0f3{SSL, (ssl, http/1.1)}{0.0.0.0:9995}
+2021-04-15T23:51:07,514 [server.Server] INFO : Started Server@70a8a777{STARTING}[11.0.1,sto=0] @11420ms
+2021-04-15T23:51:07,537 [zookeeper.ServiceLock] DEBUG: [zlock#a89d8c46-b147-4e1f-a6e2-4f7cc1706d49#] Ephemeral node /accumulo/fc3fd99b-fb6f-432b-9e5b-5dfbc615fb22/monitor/lock/zlock#a89d8c46-b147-4e1f-a6e2-4f7cc1706d49#0000000013 created
+2021-04-15T23:51:07,539 [zookeeper.ServiceLock] DEBUG: [zlock#a89d8c46-b147-4e1f-a6e2-4f7cc1706d49#] Setting watcher on /accumulo/fc3fd99b-fb6f-432b-9e5b-5dfbc615fb22/monitor/lock/zlock#a89d8c46-b147-4e1f-a6e2-4f7cc1706d49#0000000013
+2021-04-15T23:51:07,542 [zookeeper.ServiceLock] DEBUG: [zlock#a89d8c46-b147-4e1f-a6e2-4f7cc1706d49#] First candidate is my lock, acquiring...
+2021-04-15T23:51:07,542 [monitor.Monitor] INFO : Got Monitor lock.
+2021-04-15T23:51:07,542 [monitor.Monitor] DEBUG: Using accucluster3-0.agceci.onmicrosoft.com to advertise monitor location in ZooKeeper
+2021-04-15T23:51:07,561 [monitor.Monitor] INFO : Set monitor address in zookeeper to https://accucluster3-0.your.domain.com:9995/
+
+2021-04-15T23:52:05,372 [vfs.ContextManager] DEBUG: Managed Contexts: {}
 
 
+```
+
+If you don't see the expected URL, try stopping and restarting the corresponding service, while tailing the matching log. For example,
+
+```
+accumulo-service monitor stop
+accumulo-service monitor start
+```
 
 
 
